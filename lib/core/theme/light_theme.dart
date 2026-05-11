@@ -67,7 +67,9 @@ final ThemeData lightThemeData = ThemeData(
   elevatedButtonTheme:
       AppTheme.elevatedButtonTheme,
 
-  cardTheme: AppTheme.cardTheme,
+  cardTheme: CardThemeData(
+    color: AppColors.white,
+  ),
 
   dividerColor: AppColors.lightGrey,
 

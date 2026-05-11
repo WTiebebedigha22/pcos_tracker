@@ -1,22 +1,28 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class NotificationService {
-  static final FlutterLocalNotificationsPlugin
-      _notificationsPlugin =
+  static final FlutterLocalNotificationsPlugin _notificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
   static Future<void> initialize() async {
     const AndroidInitializationSettings androidSettings =
-        AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
-    );
+        AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    const InitializationSettings settings =
-        InitializationSettings(
+    const DarwinInitializationSettings iosSettings = 
+        DarwinInitializationSettings();
+
+    const InitializationSettings settings = InitializationSettings(
       android: androidSettings,
+      iOS: iosSettings,
     );
 
-    await _notificationsPlugin.initialize(settings);
+    // FIX: 'settings' must be a named argument
+    await _notificationsPlugin.initialize(
+      settings: settings, 
+      onDidReceiveNotificationResponse: (details) {
+        // Handle tap logic
+      },
+    );
   }
 
   static Future<void> showNotification({
@@ -24,24 +30,25 @@ class NotificationService {
     required String title,
     required String body,
   }) async {
-    const AndroidNotificationDetails androidDetails =
-        AndroidNotificationDetails(
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'pcos_channel',
       'PCOS Notifications',
-      importance: Importance.high,
+      channelDescription: 'Channel for PCOS related reminders',
+      importance: Importance.max,
       priority: Priority.high,
     );
 
-    const NotificationDetails details =
-        NotificationDetails(
+    const NotificationDetails details = NotificationDetails(
       android: androidDetails,
+      iOS: DarwinNotificationDetails(),
     );
 
+    // FIX: All arguments must now be named
     await _notificationsPlugin.show(
-      id,
-      title,
-      body,
-      details,
+      id: id,
+      title: title,
+      body: body,
+      notificationDetails: details,
     );
   }
 }

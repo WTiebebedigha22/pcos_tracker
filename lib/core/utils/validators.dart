@@ -56,7 +56,7 @@ class Validators {
     return null;
   }
 }
-class Validators {
+class Validator {
   // Email Validator
   static String? validateEmail(String? value) {
     if (value == null || value.isEmpty) {

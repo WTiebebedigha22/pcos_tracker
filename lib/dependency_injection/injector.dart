@@ -58,3 +58,4 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton(
     () => NotificationService(),
   );
+}

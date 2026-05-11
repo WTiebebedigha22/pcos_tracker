@@ -69,7 +69,7 @@ final ThemeData darkThemeData = ThemeData(
   elevatedButtonTheme:
       AppTheme.elevatedButtonTheme,
 
-  cardTheme: AppTheme.cardTheme.copyWith(
+  cardTheme: CardThemeData(
     color: const Color(0xFF1E1E1E),
   ),
 
