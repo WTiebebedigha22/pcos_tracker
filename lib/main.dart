@@ -1,18 +1,42 @@
 import 'package:flutter/material.dart';
-import 'routes/app_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-void main() {
-  runApp(const MyApp());
+import 'routes/app_router.dart';
+import 'dependency_injection/injector.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Supabase
+  await Supabase.initialize(
+    url: 'https://gygncpzxyorabgnhnhgl.supabase.co',
+    anonKey:
+        'sb_publishable_ml_TvJq6NPnm83dwbd7Dqg_FV4QhWOJ',
+  );
+
+  // Initialize Dependency Injection
+  await initDependencies();
+
+  runApp(
+    const MyApp(),
+  );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      routerConfig: AppRouter.router,
+      title: 'CycleSync',
+
       debugShowCheckedModeBanner: false,
+
+      routerConfig: AppRouter.router,
+
+      themeMode: ThemeMode.light,
     );
   }
 }
