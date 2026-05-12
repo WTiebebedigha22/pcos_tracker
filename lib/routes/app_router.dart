@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pcos_tracker/app.dart';
 
+// Import your shell
+
+// Import your pages
 import '../features/auth/presentation/pages/login_page.dart';
 import '../features/auth/presentation/pages/register_page.dart';
-
 import '../features/cycle_tracking/presentation/pages/cycle_calender.dart';
 import '../features/dashboard/presentation/pages/dashboard.dart';
 import '../features/symptoms/presentation/pages/symptoms_log.dart';
@@ -20,7 +23,7 @@ class AppRouter {
     debugLogDiagnostics: true,
 
     routes: [
-      // AUTH
+      // 1. AUTH ROUTES (Standalone - No Nav Bar)
       GoRoute(
         path: RouteNames.login,
         builder: (context, state) => const LoginPage(),
@@ -30,47 +33,24 @@ class AppRouter {
         builder: (context, state) => const RegisterPage(),
       ),
 
-      // DASHBOARD
+      // 2. MAIN APP ROUTE (The Shell)
+      // When the user hits '/dashboard' (or whatever your home path is), 
+      // we load the AppMainScreen which contains the Navigation Bar.
       GoRoute(
         path: RouteNames.dashboard,
-        builder: (context, state) => const DashboardPage(),
+        builder: (context, state) => const AppMainScreen(),
       ),
 
-      // CYCLE TRACKING
-      GoRoute(
-        path: RouteNames.cycleCalendar,
-        builder: (context, state) => const CycleCalendarPage(),
-      ),
-
-      // SYMPTOMS
-      GoRoute(
-        path: RouteNames.symptoms,
-        builder: (context, state) => const SymptomLogPage(),
-      ),
-
-      // MEDICATIONS
-      GoRoute(
-        path: RouteNames.medications,
-        builder: (context, state) => const MedicationsPage(),
-      ),
-
-      // LIFESTYLE
-      GoRoute(
-        path: RouteNames.lifestyle,
-        builder: (context, state) => const WaterTrackerPage(),
-      ),
-
-      // INSIGHTS
-      GoRoute(
-        path: RouteNames.insights,
-        builder: (context, state) => const InsightsPage(),
-      ),
-
-      // PROFILE
-      GoRoute(
-        path: RouteNames.profile,
-        builder: (context, state) => const ProfilePage(),
-      ),
+      /* 
+         NOTE: Since your AppMainScreen uses an IndexedStack to manage 
+         Cycle, Symptoms, Meds, and Profile internally, you don't 
+         necessarily need separate top-level GoRoutes for them if 
+         you only navigate via the BottomNavBar.
+         
+         If you want to be able to deep-link to them (e.g., context.go('/profile')),
+         you would typically use a ShellRoute. But for your current 
+         AppMainScreen setup, the code above is the "fix."
+      */
     ],
 
     errorBuilder: (context, state) {
