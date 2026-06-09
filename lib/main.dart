@@ -35,7 +35,7 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => MedicationProvider()),
         ChangeNotifierProvider(create: (_) => LifestyleProvider()),
         ChangeNotifierProvider(create: (_) => InsightsProvider()),
-        ChangeNotifierProvider(create: (_) => ProfileProvider()),
+        ChangeNotifierProvider(create: (_) => UserProvider()),
       ],
       child: const MyApp(),
     ),

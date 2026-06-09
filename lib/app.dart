@@ -22,7 +22,7 @@ class _AppMainScreenState extends State<AppMainScreen> {
     const DashboardPage(),
     const CycleCalendarPage(),
     const SymptomLogPage(),
-    const MedicationsPage(),
+    const MedsPage(),
     const ProfilePage(),
   ];
 
