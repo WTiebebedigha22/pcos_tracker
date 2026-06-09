@@ -1,187 +1,759 @@
+// lib/features/profile/presentation/provider/profile_provider.dart
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../data/models/profile_model.dart';
+import '../../data/models/user_settings_model.dart';
 
-// ─────────────────────────────────────────────
-// Models
-// ─────────────────────────────────────────────
-class UserProfile {
-  final String name;
-  final String email;
-  final String avatarInitial;
-  final String dateOfBirth;
-  final String diagnosedYear;
-  final String doctorName;
-
-  const UserProfile({
-    required this.name,
-    required this.email,
-    required this.avatarInitial,
-    required this.dateOfBirth,
-    required this.diagnosedYear,
-    required this.doctorName,
-  });
-
-  UserProfile copyWith({
-    String? name,
-    String? email,
-    String? avatarInitial,
-    String? dateOfBirth,
-    String? diagnosedYear,
-    String? doctorName,
-  }) {
-    return UserProfile(
-      name: name ?? this.name,
-      email: email ?? this.email,
-      avatarInitial: avatarInitial ?? this.avatarInitial,
-      dateOfBirth: dateOfBirth ?? this.dateOfBirth,
-      diagnosedYear: diagnosedYear ?? this.diagnosedYear,
-      doctorName: doctorName ?? this.doctorName,
-    );
-  }
-}
-
-class HealthSettings {
-  final int cycleLength;
-  final int periodLength;
-  final bool notificationsEnabled;
-  final bool periodReminder;
-  final bool ovulationReminder;
-  final bool medicationReminder;
-  final String weightUnit; // 'kg' | 'lbs'
-  final String temperatureUnit; // '°C' | '°F'
-
-  const HealthSettings({
-    required this.cycleLength,
-    required this.periodLength,
-    required this.notificationsEnabled,
-    required this.periodReminder,
-    required this.ovulationReminder,
-    required this.medicationReminder,
-    required this.weightUnit,
-    required this.temperatureUnit,
-  });
-
-  HealthSettings copyWith({
-    int? cycleLength,
-    int? periodLength,
-    bool? notificationsEnabled,
-    bool? periodReminder,
-    bool? ovulationReminder,
-    bool? medicationReminder,
-    String? weightUnit,
-    String? temperatureUnit,
-  }) {
-    return HealthSettings(
-      cycleLength: cycleLength ?? this.cycleLength,
-      periodLength: periodLength ?? this.periodLength,
-      notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
-      periodReminder: periodReminder ?? this.periodReminder,
-      ovulationReminder: ovulationReminder ?? this.ovulationReminder,
-      medicationReminder: medicationReminder ?? this.medicationReminder,
-      weightUnit: weightUnit ?? this.weightUnit,
-      temperatureUnit: temperatureUnit ?? this.temperatureUnit,
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-// Provider
-// ─────────────────────────────────────────────
 class UserProvider extends ChangeNotifier {
-  UserProfile _profile = const UserProfile(
-    name: 'Maya Johnson',
-    email: 'maya.johnson@email.com',
-    avatarInitial: 'M',
-    dateOfBirth: 'March 14, 1995',
-    diagnosedYear: '2021',
-    doctorName: 'Dr. Sarah Williams',
-  );
+  final SupabaseClient _supabase = Supabase.instance.client;
+  
+  ProfileModel _profile = ProfileModel.empty();
+  UserSettingsModel _settings = UserSettingsModel.empty();
+  
+  bool _isLoading = true;
+  bool get isLoading => _isLoading;
+  
+  bool _isSaving = false;
+  bool get isSaving => _isSaving;
+  
+  String? _error;
+  String? get error => _error;
 
-  HealthSettings _settings = const HealthSettings(
-    cycleLength: 28,
-    periodLength: 5,
-    notificationsEnabled: true,
-    periodReminder: true,
-    ovulationReminder: true,
-    medicationReminder: false,
-    weightUnit: 'kg',
-    temperatureUnit: '°C',
-  );
-
-  // ── Getters ──────────────────────────────────
-  UserProfile get profile => _profile;
-  HealthSettings get settings => _settings;
-
-  String get displayName => _profile.name;
+  // Getters
+  ProfileModel get profile => _profile;
+  UserSettingsModel get settings => _settings;
+  String get displayName => _profile.displayName;
   String get email => _profile.email;
   String get avatarInitial => _profile.avatarInitial;
+  String? get avatarUrl => _profile.avatarUrl;
+  int get age => _profile.age;
+  List<String> get pcosSymptoms => _profile.pcosSymptoms;
+  String get pcosType => _profile.pcosType;
+  String get medicationPreference => _profile.medicationPreference;
+  int get cycleTrackingReminderDays => _profile.cycleTrackingReminderDays;
+  bool get isPregnancyMode => _profile.isPregnancyMode;
+  bool get shareWithDoctor => _profile.shareWithDoctor;
 
-  // ── Profile updates ──────────────────────────
-  void updateProfile(UserProfile updated) {
-    _profile = updated;
+  final ImagePicker _imagePicker = ImagePicker();
+
+  UserProvider() {
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    _isLoading = true;
+    notifyListeners();
+    
+    try {
+      final user = _supabase.auth.currentUser;
+      
+      if (user != null) {
+        await Future.wait([
+          fetchProfile(user.id, user.email ?? ''),
+          fetchSettings(user.id),
+        ]);
+      } else {
+        _profile = ProfileModel.empty();
+        _settings = UserSettingsModel.empty();
+      }
+    } catch (e) {
+      debugPrint('Error in initialize: $e');
+      _error = e.toString();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+    
+    _supabase.auth.onAuthStateChange.listen((event) {
+      if (event.session != null) {
+        final user = event.session!.user;
+        _loadUserData(user.id, user.email ?? '');
+      } else {
+        _clearData();
+      }
+    });
+  }
+
+  Future<void> _loadUserData(String userId, String email) async {
+    _isLoading = true;
+    notifyListeners();
+    
+    try {
+      await Future.wait([
+        fetchProfile(userId, email),
+        fetchSettings(userId),
+      ]);
+    } catch (e) {
+      debugPrint('Error loading user data: $e');
+      _error = e.toString();
+      _profile = ProfileModel.empty();
+      _settings = UserSettingsModel.empty();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  void _clearData() {
+    _profile = ProfileModel.empty();
+    _settings = UserSettingsModel.empty();
+    _isLoading = false;
     notifyListeners();
   }
 
-  void updateName(String name) {
-    _profile = _profile.copyWith(
-      name: name,
-      avatarInitial: name.isNotEmpty ? name[0].toUpperCase() : 'U',
-    );
-    notifyListeners();
+  Future<void> fetchProfile(String userId, String email) async {
+    try {
+      final response = await _supabase
+          .from('profiles')
+          .select()
+          .eq('user_id', userId)
+          .maybeSingle();
+      
+      if (response != null) {
+        _profile = ProfileModel.fromJson(response);
+      } else {
+        final defaultProfile = ProfileModel(
+          userId: userId,
+          email: email,
+          avatarInitial: _getInitials(email),
+          pcosDiagnosedYear: DateTime.now().year.toString(),
+        );
+        
+        await _supabase.from('profiles').insert(defaultProfile.toJson());
+        _profile = defaultProfile;
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error fetching profile: $e');
+      rethrow;
+    }
   }
 
-  void updateEmail(String email) {
-    _profile = _profile.copyWith(email: email);
-    notifyListeners();
+  Future<void> fetchSettings(String userId) async {
+    try {
+      final response = await _supabase
+          .from('user_settings')
+          .select()
+          .eq('user_id', userId)
+          .maybeSingle();
+      
+      if (response != null) {
+        _settings = UserSettingsModel.fromJson(response);
+      } else {
+        final defaultSettings = UserSettingsModel(
+          userId: userId,
+        );
+        
+        await _supabase.from('user_settings').insert(defaultSettings.toJson());
+        _settings = defaultSettings;
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error fetching settings: $e');
+      rethrow;
+    }
   }
 
-  void updateDoctorName(String doctorName) {
-    _profile = _profile.copyWith(doctorName: doctorName);
+  Future<void> uploadProfileImage(File imageFile) async {
+    _isSaving = true;
     notifyListeners();
+    
+    try {
+      final userId = _profile.userId;
+      final fileExt = imageFile.path.split('.').last;
+      final fileName = 'avatar_$userId.${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+      
+      await _supabase.storage.from('profiles').upload(fileName, imageFile);
+      
+      final imageUrl = _supabase.storage.from('profiles').getPublicUrl(fileName);
+      
+      final updatedProfile = _profile.copyWith(
+        avatarUrl: imageUrl,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('profiles')
+          .update({
+            'avatar_url': imageUrl,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', _profile.userId);
+      
+      _profile = updatedProfile;
+      _isSaving = false;
+      notifyListeners();
+    } catch (e) {
+      _isSaving = false;
+      debugPrint('Error uploading profile image: $e');
+      _error = e.toString();
+      notifyListeners();
+    }
   }
 
-  // ── Health settings updates ───────────────────
-  void updateSettings(HealthSettings updated) {
-    _settings = updated;
-    notifyListeners();
+  Future<void> pickAndUploadImage() async {
+    try {
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 85,
+      );
+      
+      if (pickedFile != null) {
+        await uploadProfileImage(File(pickedFile.path));
+      }
+    } catch (e) {
+      debugPrint('Error picking image: $e');
+      _error = e.toString();
+    }
   }
 
-  void toggleNotifications(bool value) {
-    _settings = _settings.copyWith(notificationsEnabled: value);
+  Future<void> updateName(String name) async {
+    if (name.isEmpty) return;
+    
+    _isSaving = true;
     notifyListeners();
+    
+    try {
+      final updatedProfile = _profile.copyWith(
+        name: name,
+        avatarInitial: _getInitials(name),
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('profiles')
+          .update({
+            'name': name,
+            'avatar_initial': _getInitials(name),
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', _profile.userId);
+      
+      _profile = updatedProfile;
+      _isSaving = false;
+      notifyListeners();
+    } catch (e) {
+      _isSaving = false;
+      debugPrint('Error updating name: $e');
+      _error = e.toString();
+      notifyListeners();
+    }
   }
 
-  void togglePeriodReminder(bool value) {
-    _settings = _settings.copyWith(periodReminder: value);
+  Future<void> updateEmail(String email) async {
+    if (email.isEmpty) return;
+    
+    _isSaving = true;
     notifyListeners();
+    
+    try {
+      final updatedProfile = _profile.copyWith(
+        email: email,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('profiles')
+          .update({
+            'email': email,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', _profile.userId);
+      
+      _profile = updatedProfile;
+      _isSaving = false;
+      notifyListeners();
+    } catch (e) {
+      _isSaving = false;
+      debugPrint('Error updating email: $e');
+      _error = e.toString();
+      notifyListeners();
+    }
   }
 
-  void toggleOvulationReminder(bool value) {
-    _settings = _settings.copyWith(ovulationReminder: value);
+  Future<void> updateDoctorName(String doctorName) async {
+    _isSaving = true;
     notifyListeners();
+    
+    try {
+      final updatedProfile = _profile.copyWith(
+        doctorName: doctorName,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('profiles')
+          .update({
+            'doctor_name': doctorName,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', _profile.userId);
+      
+      _profile = updatedProfile;
+      _isSaving = false;
+      notifyListeners();
+    } catch (e) {
+      _isSaving = false;
+      debugPrint('Error updating doctor name: $e');
+      _error = e.toString();
+      notifyListeners();
+    }
   }
 
-  void toggleMedicationReminder(bool value) {
-    _settings = _settings.copyWith(medicationReminder: value);
+  Future<void> updateDateOfBirth(String dateOfBirth) async {
+    _isSaving = true;
     notifyListeners();
+    
+    try {
+      final updatedProfile = _profile.copyWith(
+        dateOfBirth: dateOfBirth,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('profiles')
+          .update({
+            'date_of_birth': dateOfBirth,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', _profile.userId);
+      
+      _profile = updatedProfile;
+      _isSaving = false;
+      notifyListeners();
+    } catch (e) {
+      _isSaving = false;
+      debugPrint('Error updating date of birth: $e');
+      _error = e.toString();
+      notifyListeners();
+    }
   }
 
-  void updateCycleLength(int days) {
-    _settings = _settings.copyWith(cycleLength: days);
+  Future<void> updatePcosDiagnosedYear(String year) async {
+    _isSaving = true;
     notifyListeners();
+    
+    try {
+      final updatedProfile = _profile.copyWith(
+        pcosDiagnosedYear: year,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('profiles')
+          .update({
+            'pcos_diagnosed_year': year,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', _profile.userId);
+      
+      _profile = updatedProfile;
+      _isSaving = false;
+      notifyListeners();
+    } catch (e) {
+      _isSaving = false;
+      debugPrint('Error updating PCOS diagnosed year: $e');
+      _error = e.toString();
+      notifyListeners();
+    }
   }
 
-  void updatePeriodLength(int days) {
-    _settings = _settings.copyWith(periodLength: days);
+  // PCOS Specific Update Methods
+  Future<void> updatePCOSSymptoms(List<String> symptoms) async {
+    _isSaving = true;
     notifyListeners();
+    
+    try {
+      final updatedProfile = _profile.copyWith(
+        pcosSymptoms: symptoms,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('profiles')
+          .update({
+            'pcos_symptoms': symptoms,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', _profile.userId);
+      
+      _profile = updatedProfile;
+      _isSaving = false;
+      notifyListeners();
+    } catch (e) {
+      _isSaving = false;
+      debugPrint('Error updating PCOS symptoms: $e');
+      _error = e.toString();
+      notifyListeners();
+    }
   }
 
-  void updateWeightUnit(String unit) {
-    _settings = _settings.copyWith(weightUnit: unit);
+  Future<void> updatePCOStype(String type) async {
+    _isSaving = true;
     notifyListeners();
+    
+    try {
+      final updatedProfile = _profile.copyWith(
+        pcosType: type,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('profiles')
+          .update({
+            'pcos_type': type,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', _profile.userId);
+      
+      _profile = updatedProfile;
+      _isSaving = false;
+      notifyListeners();
+    } catch (e) {
+      _isSaving = false;
+      debugPrint('Error updating PCOS type: $e');
+      _error = e.toString();
+      notifyListeners();
+    }
   }
 
-  void updateTemperatureUnit(String unit) {
-    _settings = _settings.copyWith(temperatureUnit: unit);
+  Future<void> updateMedicationPreference(String preference) async {
+    _isSaving = true;
+    notifyListeners();
+    
+    try {
+      final updatedProfile = _profile.copyWith(
+        medicationPreference: preference,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('profiles')
+          .update({
+            'medication_preference': preference,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', _profile.userId);
+      
+      _profile = updatedProfile;
+      _isSaving = false;
+      notifyListeners();
+    } catch (e) {
+      _isSaving = false;
+      debugPrint('Error updating medication preference: $e');
+      _error = e.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateCycleTrackingReminderDays(int days) async {
+    _isSaving = true;
+    notifyListeners();
+    
+    try {
+      final updatedProfile = _profile.copyWith(
+        cycleTrackingReminderDays: days,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('profiles')
+          .update({
+            'cycle_tracking_reminder_days': days,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', _profile.userId);
+      
+      _profile = updatedProfile;
+      _isSaving = false;
+      notifyListeners();
+    } catch (e) {
+      _isSaving = false;
+      debugPrint('Error updating reminder days: $e');
+      _error = e.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<void> togglePregnancyMode(bool value) async {
+    _isSaving = true;
+    notifyListeners();
+    
+    try {
+      final updatedProfile = _profile.copyWith(
+        isPregnancyMode: value,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('profiles')
+          .update({
+            'is_pregnancy_mode': value,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', _profile.userId);
+      
+      _profile = updatedProfile;
+      _isSaving = false;
+      notifyListeners();
+    } catch (e) {
+      _isSaving = false;
+      debugPrint('Error toggling pregnancy mode: $e');
+      _error = e.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<void> toggleShareWithDoctor(bool value) async {
+    _isSaving = true;
+    notifyListeners();
+    
+    try {
+      final updatedProfile = _profile.copyWith(
+        shareWithDoctor: value,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('profiles')
+          .update({
+            'share_with_doctor': value,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', _profile.userId);
+      
+      _profile = updatedProfile;
+      _isSaving = false;
+      notifyListeners();
+    } catch (e) {
+      _isSaving = false;
+      debugPrint('Error toggling share with doctor: $e');
+      _error = e.toString();
+      notifyListeners();
+    }
+  }
+
+  // Settings Methods
+  Future<void> updateCycleLength(int value) async {
+    try {
+      final updatedSettings = _settings.copyWith(
+        cycleLength: value,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('user_settings')
+          .update({
+            'cycle_length': value,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', _settings.userId);
+      
+      _settings = updatedSettings;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error updating cycle length: $e');
+      _error = e.toString();
+    }
+  }
+
+  Future<void> updatePeriodLength(int value) async {
+    try {
+      final updatedSettings = _settings.copyWith(
+        periodLength: value,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('user_settings')
+          .update({
+            'period_length': value,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', _settings.userId);
+      
+      _settings = updatedSettings;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error updating period length: $e');
+      _error = e.toString();
+    }
+  }
+
+  Future<void> toggleNotifications(bool value) async {
+    try {
+      final updatedSettings = _settings.copyWith(
+        notificationsEnabled: value,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('user_settings')
+          .update({
+            'notifications_enabled': value,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', _settings.userId);
+      
+      _settings = updatedSettings;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error toggling notifications: $e');
+      _error = e.toString();
+    }
+  }
+
+  Future<void> togglePeriodReminder(bool value) async {
+    try {
+      final updatedSettings = _settings.copyWith(
+        periodReminder: value,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('user_settings')
+          .update({
+            'period_reminder': value,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', _settings.userId);
+      
+      _settings = updatedSettings;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error toggling period reminder: $e');
+      _error = e.toString();
+    }
+  }
+
+  Future<void> toggleOvulationReminder(bool value) async {
+    try {
+      final updatedSettings = _settings.copyWith(
+        ovulationReminder: value,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('user_settings')
+          .update({
+            'ovulation_reminder': value,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', _settings.userId);
+      
+      _settings = updatedSettings;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error toggling ovulation reminder: $e');
+      _error = e.toString();
+    }
+  }
+
+  Future<void> toggleMedicationReminder(bool value) async {
+    try {
+      final updatedSettings = _settings.copyWith(
+        medicationReminder: value,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('user_settings')
+          .update({
+            'medication_reminder': value,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', _settings.userId);
+      
+      _settings = updatedSettings;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error toggling medication reminder: $e');
+      _error = e.toString();
+    }
+  }
+
+  Future<void> updateWeightUnit(String unit) async {
+    try {
+      final updatedSettings = _settings.copyWith(
+        weightUnit: unit,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('user_settings')
+          .update({
+            'weight_unit': unit,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', _settings.userId);
+      
+      _settings = updatedSettings;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error updating weight unit: $e');
+      _error = e.toString();
+    }
+  }
+
+  Future<void> updateTemperatureUnit(String unit) async {
+    try {
+      final updatedSettings = _settings.copyWith(
+        temperatureUnit: unit,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('user_settings')
+          .update({
+            'temperature_unit': unit,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', _settings.userId);
+      
+      _settings = updatedSettings;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error updating temperature unit: $e');
+      _error = e.toString();
+    }
+  }
+
+  String _getInitials(String name) {
+    if (name.isEmpty) return 'U';
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return name[0].toUpperCase();
+  }
+
+  Future<void> logout(BuildContext context) async {
+    try {
+      await _supabase.auth.signOut();
+      _clearData();
+      
+      if (context.mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      }
+    } catch (e) {
+      debugPrint('Error logging out: $e');
+      _error = e.toString();
+    }
+  }
+
+  Future<void> refreshData() async {
+    final user = _supabase.auth.currentUser;
+    if (user != null) {
+      await _loadUserData(user.id, user.email ?? '');
+    }
+  }
+
+  void clearError() {
+    _error = null;
     notifyListeners();
   }
 }

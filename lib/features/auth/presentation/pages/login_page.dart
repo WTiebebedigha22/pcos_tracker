@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-
 import 'package:go_router/go_router.dart';
 import 'package:pcos_tracker/features/auth/presentation/providers/auth_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../shared/widgets/custom_button.dart';
 import '../../../../shared/widgets/custom_textfield.dart';
+import '../../../../routes/route_names.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -16,10 +16,27 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController emailController = TextEditingController();
-
   final TextEditingController passwordController = TextEditingController();
-
   bool obscurePassword = true;
+
+  Future<void> _handleGoogleSignIn(AuthProvider auth) async {
+    final error = await auth.signInWithGoogle();
+    
+    if (!mounted) return;
+    
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } else {
+      // Navigate to dashboard on success
+      context.go(RouteNames.dashboard);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -122,17 +139,13 @@ class _LoginPageState extends State<LoginPage> {
                           color: AppColors.textPrimary,
                         ),
                       ),
-
                       const SizedBox(height: 10),
-
                       CustomTextField(
                         controller: emailController,
                         hintText: 'Enter your email',
                         keyboardType: TextInputType.emailAddress,
                       ),
-
                       const SizedBox(height: 22),
-
                       const Text(
                         'Password',
                         style: TextStyle(
@@ -140,9 +153,7 @@ class _LoginPageState extends State<LoginPage> {
                           color: AppColors.textPrimary,
                         ),
                       ),
-
                       const SizedBox(height: 10),
-
                       TextFormField(
                         controller: passwordController,
                         obscureText: obscurePassword,
@@ -163,13 +174,13 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                       ),
-
                       const SizedBox(height: 14),
-
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
-                          onPressed: () {},
+                          onPressed: () {
+                            context.push(RouteNames.forgotPassword);
+                          },
                           child: const Text(
                             'Forgot Password?',
                             style: TextStyle(
@@ -179,15 +190,22 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                       ),
-
                       const SizedBox(height: 10),
-
                       Consumer<AuthProvider>(
                         builder: (context, auth, _) {
                           return CustomButton(
                             text: auth.isLoading ? 'Logging in...' : 'Login',
-
                             onPressed: () async {
+                              if (emailController.text.isEmpty || passwordController.text.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Please fill in all fields'),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                                return;
+                              }
+
                               final error = await auth.login(
                                 email: emailController.text,
                                 password: passwordController.text,
@@ -196,19 +214,22 @@ class _LoginPageState extends State<LoginPage> {
                               if (!context.mounted) return;
 
                               if (error != null) {
-                                ScaffoldMessenger.of(
-                                  context,
-                                ).showSnackBar(SnackBar(content: Text(error)));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(error),
+                                    backgroundColor: Colors.red,
+                                    duration: const Duration(seconds: 3),
+                                  ),
+                                );
                               } else {
-                                context.go('/dashboard');
+                                context.go(RouteNames.dashboard);
                               }
                             },
                           );
                         },
                       ),
-
                       const SizedBox(height: 24),
-
+                      
                       // Divider
                       Row(
                         children: [
@@ -236,36 +257,38 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 24),
 
-                      // Google Button
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 56),
-                          side: BorderSide(color: Colors.grey.shade300),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                        ),
-                        onPressed: () {},
-                        icon: const Icon(
-                          Icons.g_mobiledata_rounded,
-                          size: 30,
-                          color: AppColors.primary,
-                        ),
-                        label: const Text(
-                          'Continue with Google',
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                      // Google Button with functionality
+                      Consumer<AuthProvider>(
+                        builder: (context, auth, _) {
+                          return OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(double.infinity, 56),
+                              side: BorderSide(color: Colors.grey.shade300),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                            ),
+                            onPressed: auth.isLoading ? null : () => _handleGoogleSignIn(auth),
+                            icon: const Icon(
+                              Icons.g_mobiledata_rounded,
+                              size: 30,
+                              color: AppColors.primary,
+                            ),
+                            label: Text(
+                              auth.isLoading ? 'Signing in...' : 'Continue with Google',
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 30),
 
                 // Register
@@ -279,7 +302,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       GestureDetector(
                         onTap: () {
-                          context.push('/register');
+                          context.push(RouteNames.register);
                         },
                         child: const Text(
                           'Sign Up',
@@ -292,7 +315,6 @@ class _LoginPageState extends State<LoginPage> {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 24),
               ],
             ),
@@ -300,5 +322,12 @@ class _LoginPageState extends State<LoginPage> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
   }
 }

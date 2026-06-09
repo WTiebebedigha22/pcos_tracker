@@ -1,12 +1,50 @@
+// lib/features/profile/presentation/pages/profile_page.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../../core/constants/app_colors.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../provider/profile_provider.dart';
+import 'edit_profile_page.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
+    
+    if (!authProvider.isLoggedIn) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF8F7FC),
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.person_off, size: 64, color: Colors.grey),
+                const SizedBox(height: 16),
+                const Text(
+                  'Please log in to view your profile',
+                  style: TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text('Go Back'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F7FC),
       body: SafeArea(
@@ -16,22 +54,37 @@ class ProfilePage extends StatelessWidget {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 8),
-                    _AvatarHeader(),
-                    const SizedBox(height: 24),
-                    _PersonalInfoSection(),
-                    const SizedBox(height: 16),
-                    _HealthSettingsSection(),
-                    const SizedBox(height: 16),
-                    _NotificationsSection(),
-                    const SizedBox(height: 16),
-                    _UnitsSection(),
-                    const SizedBox(height: 16),
-                    _AccountSection(),
-                    const SizedBox(height: 32),
-                  ],
+                child: Consumer<UserProvider>(
+                  builder: (context, provider, _) {
+                    if (provider.isLoading) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32),
+                          child: CircularProgressIndicator(
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      );
+                    }
+                    
+                    return Column(
+                      children: [
+                        const SizedBox(height: 8),
+                        _AvatarHeader(),
+                        const SizedBox(height: 24),
+                        _PersonalInfoSection(),
+                        const SizedBox(height: 16),
+                        _CycleSettingsSection(),
+                        const SizedBox(height: 16),
+                        _NotificationsSection(),
+                        const SizedBox(height: 16),
+                        _UnitsSection(),
+                        const SizedBox(height: 16),
+                        _AccountSection(),
+                        const SizedBox(height: 32),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -42,9 +95,7 @@ class ProfilePage extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────
 // App Bar
-// ─────────────────────────────────────────────
 class _ProfileAppBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -68,7 +119,12 @@ class _ProfileAppBar extends StatelessWidget {
             ),
           ),
           TextButton(
-            onPressed: () => _showEditNameDialog(context),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const EditProfilePage()),
+              );
+            },
             child: const Text(
               'Edit',
               style: TextStyle(
@@ -82,111 +138,9 @@ class _ProfileAppBar extends StatelessWidget {
       ),
     );
   }
-
-  void _showEditNameDialog(BuildContext context) {
-    final provider = context.read<UserProvider>();
-    final nameCtrl = TextEditingController(text: provider.profile.name);
-    final emailCtrl = TextEditingController(text: provider.profile.email);
-    final doctorCtrl = TextEditingController(text: provider.profile.doctorName);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(
-          left: 20, right: 20, top: 24,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Edit Profile',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1A1A2E))),
-            const SizedBox(height: 20),
-            _EditField(controller: nameCtrl, label: 'Full Name', icon: Icons.person_outline),
-            const SizedBox(height: 12),
-            _EditField(controller: emailCtrl, label: 'Email', icon: Icons.email_outlined,
-                keyboardType: TextInputType.emailAddress),
-            const SizedBox(height: 12),
-            _EditField(controller: doctorCtrl, label: "Doctor's Name", icon: Icons.local_hospital_outlined),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  provider.updateName(nameCtrl.text.trim());
-                  provider.updateEmail(emailCtrl.text.trim());
-                  provider.updateDoctorName(doctorCtrl.text.trim());
-                  Navigator.pop(context);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF8B3FD9),
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  elevation: 0,
-                ),
-                child: const Text('Save Changes',
-                    style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
-class _EditField extends StatelessWidget {
-  final TextEditingController controller;
-  final String label;
-  final IconData icon;
-  final TextInputType? keyboardType;
-
-  const _EditField({
-    required this.controller,
-    required this.label,
-    required this.icon,
-    this.keyboardType,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      keyboardType: keyboardType,
-      style: const TextStyle(fontSize: 15, color: Color(0xFF1A1A2E)),
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: const Color(0xFF8B3FD9), size: 20),
-        labelStyle: const TextStyle(color: Color(0xFF888888), fontSize: 14),
-        filled: true,
-        fillColor: const Color(0xFFF8F7FC),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE8E4F0)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE8E4F0)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF8B3FD9), width: 1.5),
-        ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
 // Avatar Header
-// ─────────────────────────────────────────────
 class _AvatarHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -216,13 +170,36 @@ class _AvatarHeader extends StatelessWidget {
                     ],
                   ),
                   alignment: Alignment.center,
-                  child: Text(
-                    provider.avatarInitial,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 36,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  child: ClipOval(
+                    child: (provider.avatarUrl != null && provider.avatarUrl!.isNotEmpty)
+                        ? Image.network(
+                            provider.avatarUrl!,
+                            fit: BoxFit.cover,
+                            width: 88,
+                            height: 88,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Center(
+                                child: Text(
+                                  provider.avatarInitial,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 36,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              );
+                            },
+                          )
+                        : Center(
+                            child: Text(
+                              provider.avatarInitial,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 36,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
                   ),
                 ),
                 Container(
@@ -264,9 +241,9 @@ class _AvatarHeader extends StatelessWidget {
                 color: const Color(0xFFEDE8F9),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Text(
-                'PCOS Diagnosed · 2021',
-                style: TextStyle(
+              child: Text(
+                'PCOS Diagnosed · ${provider.profile.pcosDiagnosedYear}',
+                style: const TextStyle(
                   fontSize: 12,
                   color: Color(0xFF8B3FD9),
                   fontWeight: FontWeight.w600,
@@ -280,9 +257,7 @@ class _AvatarHeader extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────
-// Section Card wrapper
-// ─────────────────────────────────────────────
+// Section Card
 class _SectionCard extends StatelessWidget {
   final String title;
   final List<Widget> children;
@@ -309,7 +284,11 @@ class _SectionCard extends StatelessWidget {
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 2)),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
             ],
           ),
           child: Column(children: children),
@@ -319,9 +298,7 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────
-// Row tiles
-// ─────────────────────────────────────────────
+// Info Tile
 class _InfoTile extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
@@ -354,21 +331,19 @@ class _InfoTile extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(label,
-                    style: const TextStyle(fontSize: 14, color: Color(0xFF555555), fontWeight: FontWeight.w500)),
+                child: Text(label, style: const TextStyle(fontSize: 14, color: Color(0xFF555555), fontWeight: FontWeight.w500)),
               ),
-              Text(value,
-                  style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A2E), fontWeight: FontWeight.w600)),
+              Text(value, style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A2E), fontWeight: FontWeight.w600)),
             ],
           ),
         ),
-        if (!isLast)
-          const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF0EDF8)),
+        if (!isLast) const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF0EDF8)),
       ],
     );
   }
 }
 
+// Toggle Tile
 class _ToggleTile extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
@@ -408,12 +383,9 @@ class _ToggleTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(label,
-                        style: const TextStyle(
-                            fontSize: 14, color: Color(0xFF1A1A2E), fontWeight: FontWeight.w600)),
+                    Text(label, style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A2E), fontWeight: FontWeight.w600)),
                     const SizedBox(height: 2),
-                    Text(subtitle,
-                        style: const TextStyle(fontSize: 12, color: Color(0xFFAAAAAA))),
+                    Text(subtitle, style: const TextStyle(fontSize: 12, color: Color(0xFFAAAAAA))),
                   ],
                 ),
               ),
@@ -426,13 +398,13 @@ class _ToggleTile extends StatelessWidget {
             ],
           ),
         ),
-        if (!isLast)
-          const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF0EDF8)),
+        if (!isLast) const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF0EDF8)),
       ],
     );
   }
 }
 
+// Stepper Tile
 class _StepperTile extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
@@ -471,9 +443,7 @@ class _StepperTile extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(label,
-                    style: const TextStyle(
-                        fontSize: 14, color: Color(0xFF1A1A2E), fontWeight: FontWeight.w600)),
+                child: Text(label, style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A2E), fontWeight: FontWeight.w600)),
               ),
               Row(
                 children: [
@@ -490,9 +460,7 @@ class _StepperTile extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  Text('$value $unit',
-                      style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1A1A2E))),
+                  Text('$value $unit', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1A1A2E))),
                   const SizedBox(width: 10),
                   GestureDetector(
                     onTap: onIncrement,
@@ -511,13 +479,13 @@ class _StepperTile extends StatelessWidget {
             ],
           ),
         ),
-        if (!isLast)
-          const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF0EDF8)),
+        if (!isLast) const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF0EDF8)),
       ],
     );
   }
 }
 
+// Segment Tile
 class _SegmentTile extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
@@ -554,9 +522,7 @@ class _SegmentTile extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(label,
-                    style: const TextStyle(
-                        fontSize: 14, color: Color(0xFF1A1A2E), fontWeight: FontWeight.w600)),
+                child: Text(label, style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A2E), fontWeight: FontWeight.w600)),
               ),
               Container(
                 height: 32,
@@ -594,13 +560,13 @@ class _SegmentTile extends StatelessWidget {
             ],
           ),
         ),
-        if (!isLast)
-          const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF0EDF8)),
+        if (!isLast) const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF0EDF8)),
       ],
     );
   }
 }
 
+// Action Tile
 class _ActionTile extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
@@ -626,9 +592,7 @@ class _ActionTile extends StatelessWidget {
       children: [
         InkWell(
           onTap: onTap,
-          borderRadius: isLast
-              ? const BorderRadius.vertical(bottom: Radius.circular(16))
-              : BorderRadius.zero,
+          borderRadius: isLast ? const BorderRadius.vertical(bottom: Radius.circular(16)) : BorderRadius.zero,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
@@ -642,29 +606,21 @@ class _ActionTile extends StatelessWidget {
                 Expanded(
                   child: Text(
                     label,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: labelColor ?? const Color(0xFF1A1A2E),
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 14, color: labelColor ?? const Color(0xFF1A1A2E), fontWeight: FontWeight.w600),
                   ),
                 ),
-                Icon(Icons.chevron_right_rounded,
-                    color: labelColor ?? const Color(0xFFCCCCCC), size: 20),
+                Icon(Icons.chevron_right_rounded, color: labelColor ?? const Color(0xFFCCCCCC), size: 20),
               ],
             ),
           ),
         ),
-        if (!isLast)
-          const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF0EDF8)),
+        if (!isLast) const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF0EDF8)),
       ],
     );
   }
 }
 
-// ─────────────────────────────────────────────
-// Sections
-// ─────────────────────────────────────────────
+// Personal Info Section
 class _PersonalInfoSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -677,7 +633,7 @@ class _PersonalInfoSection extends StatelessWidget {
             iconColor: const Color(0xFF8B3FD9),
             iconBg: const Color(0xFFEDE8F9),
             label: 'Full Name',
-            value: provider.profile.name,
+            value: provider.profile.name.isEmpty ? 'Not set' : provider.profile.name,
           ),
           _InfoTile(
             icon: Icons.email_outlined,
@@ -691,14 +647,14 @@ class _PersonalInfoSection extends StatelessWidget {
             iconColor: const Color(0xFFE94DA0),
             iconBg: const Color(0xFFFDE8F0),
             label: 'Date of Birth',
-            value: provider.profile.dateOfBirth,
+            value: provider.profile.dateOfBirth.isEmpty ? 'Not set' : provider.profile.dateOfBirth,
           ),
           _InfoTile(
             icon: Icons.local_hospital_outlined,
             iconColor: const Color(0xFF2DB96B),
             iconBg: const Color(0xFFE6F9EE),
             label: 'Doctor',
-            value: provider.profile.doctorName,
+            value: provider.profile.doctorName.isEmpty ? 'Not set' : provider.profile.doctorName,
             isLast: true,
           ),
         ],
@@ -707,7 +663,8 @@ class _PersonalInfoSection extends StatelessWidget {
   }
 }
 
-class _HealthSettingsSection extends StatelessWidget {
+// Cycle Settings Section
+class _CycleSettingsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Consumer<UserProvider>(
@@ -721,16 +678,8 @@ class _HealthSettingsSection extends StatelessWidget {
             label: 'Cycle Length',
             value: provider.settings.cycleLength,
             unit: 'days',
-            onDecrement: () {
-              if (provider.settings.cycleLength > 21) {
-                provider.updateCycleLength(provider.settings.cycleLength - 1);
-              }
-            },
-            onIncrement: () {
-              if (provider.settings.cycleLength < 45) {
-                provider.updateCycleLength(provider.settings.cycleLength + 1);
-              }
-            },
+            onDecrement: () => provider.updateCycleLength(provider.settings.cycleLength - 1),
+            onIncrement: () => provider.updateCycleLength(provider.settings.cycleLength + 1),
           ),
           _StepperTile(
             icon: Icons.water_drop_outlined,
@@ -739,16 +688,8 @@ class _HealthSettingsSection extends StatelessWidget {
             label: 'Period Length',
             value: provider.settings.periodLength,
             unit: 'days',
-            onDecrement: () {
-              if (provider.settings.periodLength > 2) {
-                provider.updatePeriodLength(provider.settings.periodLength - 1);
-              }
-            },
-            onIncrement: () {
-              if (provider.settings.periodLength < 10) {
-                provider.updatePeriodLength(provider.settings.periodLength + 1);
-              }
-            },
+            onDecrement: () => provider.updatePeriodLength(provider.settings.periodLength - 1),
+            onIncrement: () => provider.updatePeriodLength(provider.settings.periodLength + 1),
             isLast: true,
           ),
         ],
@@ -757,6 +698,7 @@ class _HealthSettingsSection extends StatelessWidget {
   }
 }
 
+// Notifications Section
 class _NotificationsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -807,6 +749,7 @@ class _NotificationsSection extends StatelessWidget {
   }
 }
 
+// Units Section
 class _UnitsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -839,76 +782,142 @@ class _UnitsSection extends StatelessWidget {
   }
 }
 
+// Account Section
 class _AccountSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return _SectionCard(
-      title: 'ACCOUNT',
-      children: [
-        _ActionTile(
-          icon: Icons.lock_outline,
-          iconColor: const Color(0xFF5B7FD9),
-          iconBg: const Color(0xFFE8EEF9),
-          label: 'Change Password',
-          onTap: () {},
-        ),
-        _ActionTile(
-          icon: Icons.file_download_outlined,
-          iconColor: const Color(0xFF2DB96B),
-          iconBg: const Color(0xFFE6F9EE),
-          label: 'Export My Data',
-          onTap: () {},
-        ),
-        _ActionTile(
-          icon: Icons.shield_outlined,
-          iconColor: const Color(0xFF8B3FD9),
-          iconBg: const Color(0xFFEDE8F9),
-          label: 'Privacy Policy',
-          onTap: () {},
-        ),
-        _ActionTile(
-          icon: Icons.logout_rounded,
-          iconColor: const Color(0xFFE94DA0),
-          iconBg: const Color(0xFFFDE8F0),
-          label: 'Log Out',
-          labelColor: const Color(0xFFE94DA0),
-          onTap: () => _confirmLogout(context),
-        ),
-        _ActionTile(
-          icon: Icons.delete_outline_rounded,
-          iconColor: Colors.red,
-          iconBg: const Color(0xFFFFEEEE),
-          label: 'Delete Account',
-          labelColor: Colors.red,
-          onTap: () {},
-          isLast: true,
-        ),
-      ],
+    return Consumer<UserProvider>(
+      builder: (context, provider, _) => _SectionCard(
+        title: 'ACCOUNT',
+        children: [
+          _ActionTile(
+            icon: Icons.lock_outline,
+            iconColor: const Color(0xFF5B7FD9),
+            iconBg: const Color(0xFFE8EEF9),
+            label: 'Change Password',
+            onTap: () => _showChangePasswordDialog(context),
+          ),
+          _ActionTile(
+            icon: Icons.file_download_outlined,
+            iconColor: const Color(0xFF2DB96B),
+            iconBg: const Color(0xFFE6F9EE),
+            label: 'Export My Data',
+            onTap: () => _showExportDataDialog(context),
+          ),
+          _ActionTile(
+            icon: Icons.shield_outlined,
+            iconColor: const Color(0xFF8B3FD9),
+            iconBg: const Color(0xFFEDE8F9),
+            label: 'Privacy Policy',
+            onTap: () => _showPrivacyPolicy(context),
+          ),
+          _ActionTile(
+            icon: Icons.logout_rounded,
+            iconColor: const Color(0xFFE94DA0),
+            iconBg: const Color(0xFFFDE8F0),
+            label: 'Log Out',
+            labelColor: const Color(0xFFE94DA0),
+            onTap: () => _confirmLogout(context, provider),
+          ),
+          _ActionTile(
+            icon: Icons.delete_outline_rounded,
+            iconColor: Colors.red,
+            iconBg: const Color(0xFFFFEEEE),
+            label: 'Delete Account',
+            labelColor: Colors.red,
+            onTap: () => _confirmDeleteAccount(context, provider),
+            isLast: true,
+          ),
+        ],
+      ),
     );
   }
 
-  void _confirmLogout(BuildContext context) {
+  void _showChangePasswordDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Log Out',
-            style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF1A1A2E))),
-        content: const Text('Are you sure you want to log out?',
-            style: TextStyle(color: Color(0xFF666666))),
+        title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.w700)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(obscureText: true, decoration: const InputDecoration(labelText: 'Current Password', border: OutlineInputBorder())),
+            const SizedBox(height: 12),
+            TextField(obscureText: true, decoration: const InputDecoration(labelText: 'New Password', border: OutlineInputBorder())),
+            const SizedBox(height: 12),
+            TextField(obscureText: true, decoration: const InputDecoration(labelText: 'Confirm New Password', border: OutlineInputBorder())),
+          ],
+        ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFF888888))),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(context), child: const Text('Update')),
+        ],
+      ),
+    );
+  }
+
+  void _showExportDataDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Export Data', style: TextStyle(fontWeight: FontWeight.w700)),
+        content: const Text('Your data will be exported as a CSV file.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(context), child: const Text('Export')),
+        ],
+      ),
+    );
+  }
+
+  void _showPrivacyPolicy(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Privacy Policy', style: TextStyle(fontWeight: FontWeight.w700)),
+        content: const Text('Your privacy is important to us...'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
+  void _confirmLogout(BuildContext context, UserProvider provider) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Log Out'),
+        content: const Text('Are you sure you want to log out?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => provider.logout(context),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE94DA0)),
+            child: const Text('Log Out'),
           ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteAccount(BuildContext context, UserProvider provider) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Delete Account', style: TextStyle(color: Colors.red)),
+        content: const Text('This action is permanent and cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE94DA0),
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            child: const Text('Log Out', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
           ),
         ],
       ),

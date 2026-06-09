@@ -1,8 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthService {
-  final SupabaseClient supabase =
-      Supabase.instance.client;
+  final SupabaseClient supabase = Supabase.instance.client;
 
   // REGISTER
   Future<AuthResponse> register({
@@ -16,7 +15,6 @@ class AuthService {
     return await supabase.auth.signUp(
       email: email,
       password: password,
-
       data: {
         'first_name': firstName,
         'last_name': lastName,
@@ -37,12 +35,36 @@ class AuthService {
     );
   }
 
+  // FORGOT PASSWORD - Send password reset email
+  Future<void> resetPassword({
+    required String email,
+  }) async {
+    await supabase.auth.resetPasswordForEmail(
+      email,
+      redirectTo: 'com.cyclesync.app://reset-password',
+    );
+  }
+
+  // UPDATE PASSWORD - After reset or for changing password
+  Future<void> updatePassword({
+    required String newPassword,
+  }) async {
+    await supabase.auth.updateUser(
+      UserAttributes(password: newPassword),
+    );
+  }
+
   // LOGOUT
   Future<void> logout() async {
     await supabase.auth.signOut();
   }
 
   // CURRENT USER
-  User? get currentUser =>
-      supabase.auth.currentUser;
+  User? get currentUser => supabase.auth.currentUser;
+
+  // CHECK IF USER IS LOGGED IN
+  bool get isLoggedIn => supabase.auth.currentSession != null;
+
+  // GET AUTH STATE STREAM
+  Stream<AuthState> get authStateChanges => supabase.auth.onAuthStateChange;
 }

@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide DayPeriod;
 import 'package:provider/provider.dart';
+import '../../data/models/medication_model.dart';
 import '../provider/medication_provider.dart';
 
 class MedsPage extends StatefulWidget {
@@ -950,7 +951,7 @@ class _LogCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────
-// Add Medication Sheet
+// Add Medication Sheet (FIXED)
 // ─────────────────────────────────────────────
 class _AddMedicationSheet extends StatefulWidget {
   const _AddMedicationSheet();
@@ -1222,24 +1223,46 @@ class _AddMedicationSheetState extends State<_AddMedicationSheet> {
   void _submit() {
     final name = _nameCtrl.text.trim();
     final dosage = _dosageCtrl.text.trim();
-    if (name.isEmpty || dosage.isEmpty) return;
+    
+    if (name.isEmpty || dosage.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter medication name and dosage'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
 
     final supply = int.tryParse(_supplyCtrl.text.trim()) ?? 30;
+    final now = DateTime.now();
+    
     final med = Medication(
-      id: 'm${DateTime.now().millisecondsSinceEpoch}',
+      id: 'med_${now.millisecondsSinceEpoch}_${now.microsecond}',
       name: name,
       dosage: dosage,
       frequency: _frequency,
       category: _category,
-      times: _times,
+      times: List.from(_times),
       notes: _notesCtrl.text.trim().isNotEmpty ? _notesCtrl.text.trim() : null,
-      startDate: DateTime.now(),
+      startDate: now,
       pillsRemaining: supply,
       pillsTotal: supply,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
     );
 
     context.read<MedicationProvider>().addMedication(med);
     Navigator.pop(context);
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Medication added successfully!'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 }
 
