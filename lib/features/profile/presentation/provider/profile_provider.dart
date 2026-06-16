@@ -50,22 +50,21 @@ class UserProvider extends ChangeNotifier {
       final user = _supabase.auth.currentUser;
       
       if (user != null) {
-        await Future.wait([
-          fetchProfile(user.id, user.email ?? ''),
-          fetchSettings(user.id),
-        ]);
+        await _loadUserData(user.id, user.email ?? '');
       } else {
         _profile = ProfileModel.empty();
         _settings = UserSettingsModel.empty();
+        _isLoading = false;
+        notifyListeners();
       }
     } catch (e) {
       debugPrint('Error in initialize: $e');
       _error = e.toString();
-    } finally {
       _isLoading = false;
       notifyListeners();
     }
     
+    // Listen to auth changes
     _supabase.auth.onAuthStateChange.listen((event) {
       if (event.session != null) {
         final user = event.session!.user;
@@ -88,8 +87,6 @@ class UserProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('Error loading user data: $e');
       _error = e.toString();
-      _profile = ProfileModel.empty();
-      _settings = UserSettingsModel.empty();
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -156,12 +153,25 @@ class UserProvider extends ChangeNotifier {
     }
   }
 
+  // Get current user ID safely
+  String? get _currentUserId {
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
+      debugPrint('No user logged in');
+      return null;
+    }
+    return user.id;
+  }
+
+  // Upload profile image from file
   Future<void> uploadProfileImage(File imageFile) async {
+    final userId = _currentUserId;
+    if (userId == null) return;
+    
     _isSaving = true;
     notifyListeners();
     
     try {
-      final userId = _profile.userId;
       final fileExt = imageFile.path.split('.').last;
       final fileName = 'avatar_$userId.${DateTime.now().millisecondsSinceEpoch}.$fileExt';
       
@@ -180,7 +190,7 @@ class UserProvider extends ChangeNotifier {
             'avatar_url': imageUrl,
             'updated_at': DateTime.now().toIso8601String(),
           })
-          .eq('user_id', _profile.userId);
+          .eq('user_id', userId);
       
       _profile = updatedProfile;
       _isSaving = false;
@@ -193,6 +203,7 @@ class UserProvider extends ChangeNotifier {
     }
   }
 
+  // Pick image from gallery and upload
   Future<void> pickAndUploadImage() async {
     try {
       final XFile? pickedFile = await _imagePicker.pickImage(
@@ -212,6 +223,13 @@ class UserProvider extends ChangeNotifier {
   }
 
   Future<void> updateName(String name) async {
+    final userId = _currentUserId;
+    if (userId == null) {
+      _error = 'No user logged in';
+      notifyListeners();
+      return;
+    }
+    
     if (name.isEmpty) return;
     
     _isSaving = true;
@@ -231,7 +249,7 @@ class UserProvider extends ChangeNotifier {
             'avatar_initial': _getInitials(name),
             'updated_at': DateTime.now().toIso8601String(),
           })
-          .eq('user_id', _profile.userId);
+          .eq('user_id', userId);
       
       _profile = updatedProfile;
       _isSaving = false;
@@ -245,6 +263,13 @@ class UserProvider extends ChangeNotifier {
   }
 
   Future<void> updateEmail(String email) async {
+    final userId = _currentUserId;
+    if (userId == null) {
+      _error = 'No user logged in';
+      notifyListeners();
+      return;
+    }
+    
     if (email.isEmpty) return;
     
     _isSaving = true;
@@ -262,7 +287,7 @@ class UserProvider extends ChangeNotifier {
             'email': email,
             'updated_at': DateTime.now().toIso8601String(),
           })
-          .eq('user_id', _profile.userId);
+          .eq('user_id', userId);
       
       _profile = updatedProfile;
       _isSaving = false;
@@ -276,6 +301,13 @@ class UserProvider extends ChangeNotifier {
   }
 
   Future<void> updateDoctorName(String doctorName) async {
+    final userId = _currentUserId;
+    if (userId == null) {
+      _error = 'No user logged in';
+      notifyListeners();
+      return;
+    }
+    
     _isSaving = true;
     notifyListeners();
     
@@ -291,7 +323,7 @@ class UserProvider extends ChangeNotifier {
             'doctor_name': doctorName,
             'updated_at': DateTime.now().toIso8601String(),
           })
-          .eq('user_id', _profile.userId);
+          .eq('user_id', userId);
       
       _profile = updatedProfile;
       _isSaving = false;
@@ -305,6 +337,13 @@ class UserProvider extends ChangeNotifier {
   }
 
   Future<void> updateDateOfBirth(String dateOfBirth) async {
+    final userId = _currentUserId;
+    if (userId == null) {
+      _error = 'No user logged in';
+      notifyListeners();
+      return;
+    }
+    
     _isSaving = true;
     notifyListeners();
     
@@ -320,7 +359,7 @@ class UserProvider extends ChangeNotifier {
             'date_of_birth': dateOfBirth,
             'updated_at': DateTime.now().toIso8601String(),
           })
-          .eq('user_id', _profile.userId);
+          .eq('user_id', userId);
       
       _profile = updatedProfile;
       _isSaving = false;
@@ -334,6 +373,13 @@ class UserProvider extends ChangeNotifier {
   }
 
   Future<void> updatePcosDiagnosedYear(String year) async {
+    final userId = _currentUserId;
+    if (userId == null) {
+      _error = 'No user logged in';
+      notifyListeners();
+      return;
+    }
+    
     _isSaving = true;
     notifyListeners();
     
@@ -349,7 +395,7 @@ class UserProvider extends ChangeNotifier {
             'pcos_diagnosed_year': year,
             'updated_at': DateTime.now().toIso8601String(),
           })
-          .eq('user_id', _profile.userId);
+          .eq('user_id', userId);
       
       _profile = updatedProfile;
       _isSaving = false;
@@ -362,183 +408,10 @@ class UserProvider extends ChangeNotifier {
     }
   }
 
-  // PCOS Specific Update Methods
-  Future<void> updatePCOSSymptoms(List<String> symptoms) async {
-    _isSaving = true;
-    notifyListeners();
-    
-    try {
-      final updatedProfile = _profile.copyWith(
-        pcosSymptoms: symptoms,
-        updatedAt: DateTime.now(),
-      );
-      
-      await _supabase
-          .from('profiles')
-          .update({
-            'pcos_symptoms': symptoms,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('user_id', _profile.userId);
-      
-      _profile = updatedProfile;
-      _isSaving = false;
-      notifyListeners();
-    } catch (e) {
-      _isSaving = false;
-      debugPrint('Error updating PCOS symptoms: $e');
-      _error = e.toString();
-      notifyListeners();
-    }
-  }
-
-  Future<void> updatePCOStype(String type) async {
-    _isSaving = true;
-    notifyListeners();
-    
-    try {
-      final updatedProfile = _profile.copyWith(
-        pcosType: type,
-        updatedAt: DateTime.now(),
-      );
-      
-      await _supabase
-          .from('profiles')
-          .update({
-            'pcos_type': type,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('user_id', _profile.userId);
-      
-      _profile = updatedProfile;
-      _isSaving = false;
-      notifyListeners();
-    } catch (e) {
-      _isSaving = false;
-      debugPrint('Error updating PCOS type: $e');
-      _error = e.toString();
-      notifyListeners();
-    }
-  }
-
-  Future<void> updateMedicationPreference(String preference) async {
-    _isSaving = true;
-    notifyListeners();
-    
-    try {
-      final updatedProfile = _profile.copyWith(
-        medicationPreference: preference,
-        updatedAt: DateTime.now(),
-      );
-      
-      await _supabase
-          .from('profiles')
-          .update({
-            'medication_preference': preference,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('user_id', _profile.userId);
-      
-      _profile = updatedProfile;
-      _isSaving = false;
-      notifyListeners();
-    } catch (e) {
-      _isSaving = false;
-      debugPrint('Error updating medication preference: $e');
-      _error = e.toString();
-      notifyListeners();
-    }
-  }
-
-  Future<void> updateCycleTrackingReminderDays(int days) async {
-    _isSaving = true;
-    notifyListeners();
-    
-    try {
-      final updatedProfile = _profile.copyWith(
-        cycleTrackingReminderDays: days,
-        updatedAt: DateTime.now(),
-      );
-      
-      await _supabase
-          .from('profiles')
-          .update({
-            'cycle_tracking_reminder_days': days,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('user_id', _profile.userId);
-      
-      _profile = updatedProfile;
-      _isSaving = false;
-      notifyListeners();
-    } catch (e) {
-      _isSaving = false;
-      debugPrint('Error updating reminder days: $e');
-      _error = e.toString();
-      notifyListeners();
-    }
-  }
-
-  Future<void> togglePregnancyMode(bool value) async {
-    _isSaving = true;
-    notifyListeners();
-    
-    try {
-      final updatedProfile = _profile.copyWith(
-        isPregnancyMode: value,
-        updatedAt: DateTime.now(),
-      );
-      
-      await _supabase
-          .from('profiles')
-          .update({
-            'is_pregnancy_mode': value,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('user_id', _profile.userId);
-      
-      _profile = updatedProfile;
-      _isSaving = false;
-      notifyListeners();
-    } catch (e) {
-      _isSaving = false;
-      debugPrint('Error toggling pregnancy mode: $e');
-      _error = e.toString();
-      notifyListeners();
-    }
-  }
-
-  Future<void> toggleShareWithDoctor(bool value) async {
-    _isSaving = true;
-    notifyListeners();
-    
-    try {
-      final updatedProfile = _profile.copyWith(
-        shareWithDoctor: value,
-        updatedAt: DateTime.now(),
-      );
-      
-      await _supabase
-          .from('profiles')
-          .update({
-            'share_with_doctor': value,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('user_id', _profile.userId);
-      
-      _profile = updatedProfile;
-      _isSaving = false;
-      notifyListeners();
-    } catch (e) {
-      _isSaving = false;
-      debugPrint('Error toggling share with doctor: $e');
-      _error = e.toString();
-      notifyListeners();
-    }
-  }
-
-  // Settings Methods
   Future<void> updateCycleLength(int value) async {
+    final userId = _currentUserId;
+    if (userId == null) return;
+    
     try {
       final updatedSettings = _settings.copyWith(
         cycleLength: value,
@@ -551,7 +424,7 @@ class UserProvider extends ChangeNotifier {
             'cycle_length': value,
             'updated_at': DateTime.now().toIso8601String(),
           })
-          .eq('user_id', _settings.userId);
+          .eq('user_id', userId);
       
       _settings = updatedSettings;
       notifyListeners();
@@ -562,6 +435,9 @@ class UserProvider extends ChangeNotifier {
   }
 
   Future<void> updatePeriodLength(int value) async {
+    final userId = _currentUserId;
+    if (userId == null) return;
+    
     try {
       final updatedSettings = _settings.copyWith(
         periodLength: value,
@@ -574,7 +450,7 @@ class UserProvider extends ChangeNotifier {
             'period_length': value,
             'updated_at': DateTime.now().toIso8601String(),
           })
-          .eq('user_id', _settings.userId);
+          .eq('user_id', userId);
       
       _settings = updatedSettings;
       notifyListeners();
@@ -585,6 +461,9 @@ class UserProvider extends ChangeNotifier {
   }
 
   Future<void> toggleNotifications(bool value) async {
+    final userId = _currentUserId;
+    if (userId == null) return;
+    
     try {
       final updatedSettings = _settings.copyWith(
         notificationsEnabled: value,
@@ -597,7 +476,7 @@ class UserProvider extends ChangeNotifier {
             'notifications_enabled': value,
             'updated_at': DateTime.now().toIso8601String(),
           })
-          .eq('user_id', _settings.userId);
+          .eq('user_id', userId);
       
       _settings = updatedSettings;
       notifyListeners();
@@ -608,6 +487,9 @@ class UserProvider extends ChangeNotifier {
   }
 
   Future<void> togglePeriodReminder(bool value) async {
+    final userId = _currentUserId;
+    if (userId == null) return;
+    
     try {
       final updatedSettings = _settings.copyWith(
         periodReminder: value,
@@ -620,7 +502,7 @@ class UserProvider extends ChangeNotifier {
             'period_reminder': value,
             'updated_at': DateTime.now().toIso8601String(),
           })
-          .eq('user_id', _settings.userId);
+          .eq('user_id', userId);
       
       _settings = updatedSettings;
       notifyListeners();
@@ -631,6 +513,9 @@ class UserProvider extends ChangeNotifier {
   }
 
   Future<void> toggleOvulationReminder(bool value) async {
+    final userId = _currentUserId;
+    if (userId == null) return;
+    
     try {
       final updatedSettings = _settings.copyWith(
         ovulationReminder: value,
@@ -643,7 +528,7 @@ class UserProvider extends ChangeNotifier {
             'ovulation_reminder': value,
             'updated_at': DateTime.now().toIso8601String(),
           })
-          .eq('user_id', _settings.userId);
+          .eq('user_id', userId);
       
       _settings = updatedSettings;
       notifyListeners();
@@ -654,6 +539,9 @@ class UserProvider extends ChangeNotifier {
   }
 
   Future<void> toggleMedicationReminder(bool value) async {
+    final userId = _currentUserId;
+    if (userId == null) return;
+    
     try {
       final updatedSettings = _settings.copyWith(
         medicationReminder: value,
@@ -666,7 +554,7 @@ class UserProvider extends ChangeNotifier {
             'medication_reminder': value,
             'updated_at': DateTime.now().toIso8601String(),
           })
-          .eq('user_id', _settings.userId);
+          .eq('user_id', userId);
       
       _settings = updatedSettings;
       notifyListeners();
@@ -677,6 +565,9 @@ class UserProvider extends ChangeNotifier {
   }
 
   Future<void> updateWeightUnit(String unit) async {
+    final userId = _currentUserId;
+    if (userId == null) return;
+    
     try {
       final updatedSettings = _settings.copyWith(
         weightUnit: unit,
@@ -689,7 +580,7 @@ class UserProvider extends ChangeNotifier {
             'weight_unit': unit,
             'updated_at': DateTime.now().toIso8601String(),
           })
-          .eq('user_id', _settings.userId);
+          .eq('user_id', userId);
       
       _settings = updatedSettings;
       notifyListeners();
@@ -700,6 +591,9 @@ class UserProvider extends ChangeNotifier {
   }
 
   Future<void> updateTemperatureUnit(String unit) async {
+    final userId = _currentUserId;
+    if (userId == null) return;
+    
     try {
       final updatedSettings = _settings.copyWith(
         temperatureUnit: unit,
@@ -712,7 +606,7 @@ class UserProvider extends ChangeNotifier {
             'temperature_unit': unit,
             'updated_at': DateTime.now().toIso8601String(),
           })
-          .eq('user_id', _settings.userId);
+          .eq('user_id', userId);
       
       _settings = updatedSettings;
       notifyListeners();

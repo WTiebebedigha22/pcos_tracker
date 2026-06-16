@@ -6,7 +6,7 @@ class CycleModel extends Equatable {
   final String userId;
   final DateTime startDate;
   final DateTime? endDate;
-  final String flowIntensity; // light, medium, heavy
+  final String flowIntensity;
   final List<String> symptoms;
   final String? notes;
   final bool isIrregular;
@@ -25,13 +25,6 @@ class CycleModel extends Equatable {
     required this.createdAt,
     required this.updatedAt,
   });
-
-  int get duration {
-    if (endDate == null) return 0;
-    return endDate!.difference(startDate).inDays + 1;
-  }
-
-  bool get isActive => endDate == null;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -61,32 +54,6 @@ class CycleModel extends Equatable {
     );
   }
 
-  CycleModel copyWith({
-    String? id,
-    String? userId,
-    DateTime? startDate,
-    DateTime? endDate,
-    String? flowIntensity,
-    List<String>? symptoms,
-    String? notes,
-    bool? isIrregular,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-  }) {
-    return CycleModel(
-      id: id ?? this.id,
-      userId: userId ?? this.userId,
-      startDate: startDate ?? this.startDate,
-      endDate: endDate ?? this.endDate,
-      flowIntensity: flowIntensity ?? this.flowIntensity,
-      symptoms: symptoms ?? this.symptoms,
-      notes: notes ?? this.notes,
-      isIrregular: isIrregular ?? this.isIrregular,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-    );
-  }
-
   @override
-  List<Object?> get props => [id, userId, startDate, endDate, flowIntensity, symptoms];
+  List<Object?> get props => [id, userId, startDate, endDate];
 }

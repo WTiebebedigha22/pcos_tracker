@@ -48,47 +48,51 @@ class ProfilePage extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F7FC),
       body: SafeArea(
-        child: Column(
-          children: [
-            _ProfileAppBar(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Consumer<UserProvider>(
-                  builder: (context, provider, _) {
-                    if (provider.isLoading) {
-                      return const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(32),
-                          child: CircularProgressIndicator(
-                            color: AppColors.primary,
+        child: RefreshIndicator(
+          onRefresh: () => context.read<UserProvider>().refreshData(),
+          child: Column(
+            children: [
+              _ProfileAppBar(),
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Consumer<UserProvider>(
+                    builder: (context, provider, _) {
+                      if (provider.isLoading) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(32),
+                            child: CircularProgressIndicator(
+                              color: AppColors.primary,
+                            ),
                           ),
-                        ),
+                        );
+                      }
+                      
+                      return Column(
+                        children: [
+                          const SizedBox(height: 8),
+                          _AvatarHeader(),
+                          const SizedBox(height: 24),
+                          _PersonalInfoSection(),
+                          const SizedBox(height: 16),
+                          _CycleSettingsSection(),
+                          const SizedBox(height: 16),
+                          _NotificationsSection(),
+                          const SizedBox(height: 16),
+                          _UnitsSection(),
+                          const SizedBox(height: 16),
+                          _AccountSection(),
+                          const SizedBox(height: 32),
+                        ],
                       );
-                    }
-                    
-                    return Column(
-                      children: [
-                        const SizedBox(height: 8),
-                        _AvatarHeader(),
-                        const SizedBox(height: 24),
-                        _PersonalInfoSection(),
-                        const SizedBox(height: 16),
-                        _CycleSettingsSection(),
-                        const SizedBox(height: 16),
-                        _NotificationsSection(),
-                        const SizedBox(height: 16),
-                        _UnitsSection(),
-                        const SizedBox(height: 16),
-                        _AccountSection(),
-                        const SizedBox(height: 32),
-                      ],
-                    );
-                  },
+                    },
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -123,7 +127,10 @@ class _ProfileAppBar extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const EditProfilePage()),
-              );
+              ).then((_) {
+                // Refresh data when returning from edit page
+                context.read<UserProvider>().refreshData();
+              });
             },
             child: const Text(
               'Edit',
@@ -163,7 +170,7 @@ class _AvatarHeader extends StatelessWidget {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF8B3FD9).withOpacity(0.3),
+                        color: const Color(0xFF8B3FD9).withValues(alpha: 0.3),
                         blurRadius: 16,
                         offset: const Offset(0, 6),
                       ),
@@ -285,7 +292,7 @@ class _SectionCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 10,
                 offset: const Offset(0, 2),
               ),

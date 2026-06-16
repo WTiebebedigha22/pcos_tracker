@@ -1,7 +1,9 @@
 // lib/features/dashboard/presentation/pages/dashboard.dart
 import 'package:flutter/material.dart';
-import 'package:pcos_tracker/core/constants/app_colors.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../core/constants/app_colors.dart';
+import '../../../../routes/route_names.dart';
 import '../../../symptoms/presentation/provider/symptoms_provider.dart';
 import '../providers/dashboard_provider.dart';
 
@@ -16,10 +18,19 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<DashboardProvider>().fetchDashboardData();
-      context.read<SymptomProvider>().fetchRecentSymptoms();
+    // Small delay to ensure providers are ready
+    Future.microtask(() {
+      if (mounted) {
+        _refreshData();
+      }
     });
+  }
+
+  Future<void> _refreshData() async {
+    await Future.wait([
+      context.read<DashboardProvider>().fetchDashboardData(),
+      context.read<SymptomProvider>().fetchRecentSymptoms(),
+    ]);
   }
 
   @override
@@ -32,12 +43,7 @@ class _DashboardPageState extends State<DashboardPage> {
             const _TopBar(),
             Expanded(
               child: RefreshIndicator(
-                onRefresh: () async {
-                  await Future.wait([
-                    context.read<DashboardProvider>().fetchDashboardData(),
-                    context.read<SymptomProvider>().fetchRecentSymptoms(),
-                  ]);
-                },
+                onRefresh: _refreshData,
                 child: Consumer<DashboardProvider>(
                   builder: (context, dashboardProvider, _) {
                     if (dashboardProvider.isLoading) {
@@ -70,6 +76,10 @@ class _DashboardPageState extends State<DashboardPage> {
                           ),
                           const SizedBox(height: 24),
                           const _RecentSymptomsSection(),
+                          const SizedBox(height: 16),
+                          _InsightsPreviewCard(), // Added Insights Preview Card
+                          const SizedBox(height: 16),
+                          const _QuickActionsSection(),
                           const SizedBox(height: 40),
                         ],
                       ),
@@ -91,7 +101,8 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.read<DashboardProvider>().currentUser;
+    final dashboardProvider = context.watch<DashboardProvider>();
+    final user = dashboardProvider.currentUser;
     final userName = user?.userMetadata?['first_name'] ?? 
                      user?.userMetadata?['name'] ?? 
                      'User';
@@ -114,15 +125,21 @@ class _TopBar extends StatelessWidget {
                 ),
               ),
               Text(
-                'Hello, $userName 👋',
+                'Welcome Back, $userName!',
                 style: const TextStyle(fontSize: 13, color: Color(0xFF888888)),
               ),
             ],
           ),
-          const CircleAvatar(
-            radius: 22,
-            backgroundColor: Color(0xFF8B3FD9),
-            child: Icon(Icons.person_outline, color: Colors.white),
+          GestureDetector(
+            onTap: () {
+              // Navigate to profile page
+              context.push(RouteNames.profile);
+            },
+            child: const CircleAvatar(
+              radius: 22,
+              backgroundColor: Color(0xFF8B3FD9),
+              child: Icon(Icons.person_outline, color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -357,6 +374,7 @@ class _RecentSymptomsSection extends StatelessWidget {
             TextButton(
               onPressed: () {
                 // Navigate to symptoms page
+                context.push('/symptoms');
               },
               child: const Text('See All'),
             ),
@@ -409,7 +427,7 @@ class _RecentSymptomsSection extends StatelessWidget {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: displaySymptoms.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 final symptom = displaySymptoms[index];
                 return _SymptomTile(
@@ -497,5 +515,205 @@ class _SymptomTile extends StatelessWidget {
       case 'severe': return Colors.red;
       default: return Colors.grey;
     }
+  }
+}
+
+// New: Insights Preview Card
+class _InsightsPreviewCard extends StatelessWidget {
+  const _InsightsPreviewCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        // Navigate to insights page
+        context.push('/insights');
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.primary.withOpacity(0.9), AppColors.pink.withOpacity(0.9)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withOpacity(0.2),
+              blurRadius: 15,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(
+                Icons.insights,
+                color: Colors.white,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Your Health Insights',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _getInsightMessage(),
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.arrow_forward_ios,
+              color: Colors.white,
+              size: 16,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getInsightMessage() {
+    // This will be dynamic based on user's data
+    return "View personalized insights about your cycle patterns and health trends";
+  }
+}
+
+// New: Quick Actions Section
+class _QuickActionsSection extends StatelessWidget {
+  const _QuickActionsSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Quick Actions',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _QuickActionCard(
+                icon: Icons.sick,
+                label: 'Log Symptoms',
+                color: const Color(0xFFE94DA0),
+                onTap: () {
+                  context.push('/symptoms');
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _QuickActionCard(
+                icon: Icons.calendar_month,
+                label: 'Log Period',
+                color: AppColors.primary,
+                onTap: () {
+                  context.push('/cycle-calendar');
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _QuickActionCard(
+                icon: Icons.medication,
+                label: 'Medications',
+                color: Colors.green,
+                onTap: () {
+                  context.push('/medications');
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _QuickActionCard(
+                icon: Icons.water_drop,
+                label: 'Water Intake',
+                color: Colors.blue,
+                onTap: () {
+                  context.push('/water-tracker');
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _QuickActionCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _QuickActionCard({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFF0F0F0)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

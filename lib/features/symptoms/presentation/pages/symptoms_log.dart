@@ -25,6 +25,7 @@ class _SymptomLogPageState extends State<SymptomLogPage> {
   final TextEditingController _notesController = TextEditingController();
   bool _isLoading = false;
   bool _showCustomSymptom = false;
+  bool _isSubmitting = false;
 
   // PCOS-specific symptoms
   final List<Map<String, dynamic>> _commonSymptoms = [
@@ -81,7 +82,9 @@ class _SymptomLogPageState extends State<SymptomLogPage> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    if (_isSubmitting) return; // Prevent double submission
+    
+    setState(() => _isSubmitting = true);
 
     try {
       final user = Supabase.instance.client.auth.currentUser;
@@ -134,19 +137,34 @@ class _SymptomLogPageState extends State<SymptomLogPage> {
         _moodRating = 3;
         _energyLevel = 3;
         _sleepHours = 7.0;
+        _isSubmitting = false;
       });
 
-      Navigator.pop(context);
+      // Use Future.microtask to avoid navigation during build
+      Future.microtask(() {
+        if (mounted) {
+          Navigator.pop(context);
+        }
+      });
+      
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error saving symptoms: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      setState(() => _isSubmitting = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving symptoms: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    _customSymptomController.dispose();
+    _notesController.dispose();
+    super.dispose();
   }
 
   @override
@@ -167,11 +185,11 @@ class _SymptomLogPageState extends State<SymptomLogPage> {
         ),
         actions: [
           TextButton(
-            onPressed: _isLoading ? null : _saveSymptoms,
+            onPressed: (_isSubmitting || _isLoading) ? null : _saveSymptoms,
             child: Text(
               'Save',
               style: TextStyle(
-                color: _isLoading ? Colors.grey : AppColors.primary,
+                color: (_isSubmitting || _isLoading) ? Colors.grey : AppColors.primary,
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
               ),
@@ -179,7 +197,7 @@ class _SymptomLogPageState extends State<SymptomLogPage> {
           ),
         ],
       ),
-      body: _isLoading
+      body: (_isSubmitting || _isLoading)
           ? const Center(
               child: CircularProgressIndicator(color: AppColors.primary),
             )
@@ -241,7 +259,7 @@ class _SymptomLogPageState extends State<SymptomLogPage> {
                   CustomButton(
                     text: 'Save Symptoms',
                     onPressed: _saveSymptoms,
-                    isLoading: _isLoading,
+                    isLoading: _isSubmitting,
                   ),
                   const SizedBox(height: 20),
                 ],
@@ -646,12 +664,5 @@ class _SymptomLogPageState extends State<SymptomLogPage> {
       case 5: return 'Very Energetic';
       default: return 'Normal';
     }
-  }
-
-  @override
-  void dispose() {
-    _customSymptomController.dispose();
-    _notesController.dispose();
-    super.dispose();
   }
 }

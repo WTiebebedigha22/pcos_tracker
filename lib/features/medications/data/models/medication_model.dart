@@ -36,10 +36,18 @@ extension TimeOfDayExtension on TimeOfDay {
   }
 
   DayPeriod get period => hour < 12 ? DayPeriod.am : DayPeriod.pm;
+  
+  String toJson() => '${hour}:${minute}';
+  
+  static TimeOfDay fromJson(String json) {
+    final parts = json.split(':');
+    return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+  }
 }
 
 class Medication extends Equatable {
   final String id;
+  final String userId;
   final String name;
   final String dosage;
   final MedFrequency frequency;
@@ -55,6 +63,7 @@ class Medication extends Equatable {
 
   const Medication({
     required this.id,
+    required this.userId,
     required this.name,
     required this.dosage,
     required this.frequency,
@@ -74,11 +83,12 @@ class Medication extends Equatable {
 
   Map<String, dynamic> toJson() => {
     'id': id,
+    'user_id': userId,
     'name': name,
     'dosage': dosage,
     'frequency': frequency.name,
     'category': category.name,
-    'times': times.map((t) => '${t.hour}:${t.minute}').toList(),
+    'times': times.map((t) => t.toJson()).toList(),
     'notes': notes,
     'start_date': startDate.toIso8601String(),
     'pills_remaining': pillsRemaining,
@@ -89,15 +99,9 @@ class Medication extends Equatable {
   };
 
   factory Medication.fromJson(Map<String, dynamic> json) {
-    final timesList = (json['times'] as List)
-        .map((t) {
-          final parts = t.split(':');
-          return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
-        })
-        .toList();
-
     return Medication(
       id: json['id'],
+      userId: json['user_id'],
       name: json['name'],
       dosage: json['dosage'],
       frequency: MedFrequency.values.firstWhere(
@@ -108,7 +112,9 @@ class Medication extends Equatable {
         (e) => e.name == json['category'],
         orElse: () => MedCategory.supplement,
       ),
-      times: timesList,
+      times: (json['times'] as List)
+          .map((t) => TimeOfDayExtension.fromJson(t))
+          .toList(),
       notes: json['notes'],
       startDate: DateTime.parse(json['start_date']),
       pillsRemaining: json['pills_remaining'],
@@ -121,6 +127,7 @@ class Medication extends Equatable {
 
   Medication copyWith({
     String? id,
+    String? userId,
     String? name,
     String? dosage,
     MedFrequency? frequency,
@@ -136,6 +143,7 @@ class Medication extends Equatable {
   }) {
     return Medication(
       id: id ?? this.id,
+      userId: userId ?? this.userId,
       name: name ?? this.name,
       dosage: dosage ?? this.dosage,
       frequency: frequency ?? this.frequency,
@@ -151,12 +159,30 @@ class Medication extends Equatable {
     );
   }
 
+  static Medication empty() {
+    return Medication(
+      id: '',
+      userId: '',
+      name: '',
+      dosage: '',
+      frequency: MedFrequency.daily,
+      category: MedCategory.supplement,
+      times: [],
+      startDate: DateTime.now(),
+      pillsRemaining: 0,
+      pillsTotal: 0,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+  }
+
   @override
   List<Object?> get props => [id, name, dosage, isActive];
 }
 
 class MedLog extends Equatable {
   final String id;
+  final String userId;
   final String medicationId;
   final String medicationName;
   final String dosage;
@@ -166,6 +192,7 @@ class MedLog extends Equatable {
 
   const MedLog({
     required this.id,
+    required this.userId,
     required this.medicationId,
     required this.medicationName,
     required this.dosage,
@@ -176,6 +203,7 @@ class MedLog extends Equatable {
 
   Map<String, dynamic> toJson() => {
     'id': id,
+    'user_id': userId,
     'medication_id': medicationId,
     'medication_name': medicationName,
     'dosage': dosage,
@@ -187,6 +215,7 @@ class MedLog extends Equatable {
   factory MedLog.fromJson(Map<String, dynamic> json) {
     return MedLog(
       id: json['id'],
+      userId: json['user_id'],
       medicationId: json['medication_id'],
       medicationName: json['medication_name'],
       dosage: json['dosage'],

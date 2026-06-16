@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import 'dependency_injection/injector.dart';
 import 'features/auth/presentation/providers/auth_provider.dart';
 import 'features/cycle_tracking/presentation/provider/cycle_provider.dart';
@@ -34,7 +33,7 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => SymptomProvider()),
         ChangeNotifierProvider(create: (_) => MedicationProvider()),
         ChangeNotifierProvider(create: (_) => LifestyleProvider()),
-        ChangeNotifierProvider(create: (_) => InsightsProvider()),
+        ChangeNotifierProvider(create: (_) => InsightProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
       ],
       child: const MyApp(),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' hide DayPeriod;
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/models/medication_model.dart';
 import '../provider/medication_provider.dart';
 
@@ -297,7 +298,7 @@ class _TodayTab extends StatelessWidget {
         return ListView.separated(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
           itemCount: meds.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          separatorBuilder: (_, _) => const SizedBox(height: 10),
           itemBuilder: (context, i) =>
               _TodayMedCard(med: meds[i], provider: provider),
         );
@@ -951,7 +952,7 @@ class _LogCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────
-// Add Medication Sheet (FIXED)
+// Add Medication Sheet
 // ─────────────────────────────────────────────
 class _AddMedicationSheet extends StatefulWidget {
   const _AddMedicationSheet();
@@ -1220,7 +1221,7 @@ class _AddMedicationSheetState extends State<_AddMedicationSheet> {
             color: Color(0xFF555555)),
       );
 
-  void _submit() {
+  void _submit() async {
     final name = _nameCtrl.text.trim();
     final dosage = _dosageCtrl.text.trim();
     
@@ -1236,9 +1237,21 @@ class _AddMedicationSheetState extends State<_AddMedicationSheet> {
 
     final supply = int.tryParse(_supplyCtrl.text.trim()) ?? 30;
     final now = DateTime.now();
+    final user = Supabase.instance.client.auth.currentUser;
+    
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please log in to add medications'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     
     final med = Medication(
       id: 'med_${now.millisecondsSinceEpoch}_${now.microsecond}',
+      userId: user.id,
       name: name,
       dosage: dosage,
       frequency: _frequency,
@@ -1253,16 +1266,28 @@ class _AddMedicationSheetState extends State<_AddMedicationSheet> {
       updatedAt: now,
     );
 
-    context.read<MedicationProvider>().addMedication(med);
-    Navigator.pop(context);
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Medication added successfully!'),
-        backgroundColor: Colors.green,
-        duration: Duration(seconds: 2),
-      ),
-    );
+    try {
+      await context.read<MedicationProvider>().addMedication(med);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Medication added successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error adding medication: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
 

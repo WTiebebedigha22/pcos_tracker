@@ -18,6 +18,9 @@ class MedicationProvider extends ChangeNotifier {
   String? _error;
   String? get error => _error;
 
+  User? get _currentUser => _supabase.auth.currentUser;
+
+  // Getters for UI
   List<Medication> get activeMedications => 
       _medications.where((m) => m.isActive).toList();
   
@@ -59,138 +62,142 @@ class MedicationProvider extends ChangeNotifier {
   }
   
   List<MedLog> get sortedLogs {
-    final List<MedLog> sorted = [];
-    sorted.addAll(_logs);
+    final List<MedLog> sorted = List.from(_logs);
     sorted.sort((a, b) => b.takenAt.compareTo(a.takenAt));
     return sorted;
   }
 
-  Future<void> initialize() async {
-    await Future.wait([
-      fetchMedications(),
-      fetchLogs(),
-    ]);
+  // Constructor - auto initialize
+  MedicationProvider() {
+    _initialize();
   }
 
-  Future<void> fetchMedications() async {
-    _isLoading = true;
-    _error = null;
+  Future<void> _initialize() async {
+    if (_currentUser != null) {
+      await fetchData();
+    }
+    
+    // Listen to auth changes
+    _supabase.auth.onAuthStateChange.listen((event) {
+      if (event.session != null && _currentUser != null) {
+        fetchData();
+      } else if (event.session == null) {
+        _clearData();
+      }
+    });
+  }
+
+  void _clearData() {
+    _medications = [];
+    _logs = [];
     notifyListeners();
+  }
 
+  // NEW: fetchData method - public method to refresh all data
+  Future<void> fetchData() async {
+    if (_currentUser == null) return;
+    
+    _isLoading = true;
+    notifyListeners();
+    
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) return;
-
-      final response = await _supabase
-          .from('medications')
-          .select()
-          .eq('user_id', user.id)
-          .order('created_at', ascending: false);
-
-      _medications = (response as List)
-          .map((json) => Medication.fromJson(json))
-          .toList();
+      await Future.wait([
+        fetchMedications(),
+        fetchLogs(),
+      ]);
     } catch (e) {
       _error = e.toString();
-      debugPrint('Error fetching medications: $e');
+      debugPrint('Error fetching medication data: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  Future<void> fetchLogs() async {
+  Future<void> fetchMedications() async {
+    if (_currentUser == null) return;
+    
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) return;
+      final response = await _supabase
+          .from('medications')
+          .select()
+          .eq('user_id', _currentUser!.id)
+          .order('created_at', ascending: false);
+      
+      _medications = (response as List)
+          .map((json) => Medication.fromJson(json))
+          .toList();
+          
+      debugPrint('Loaded ${_medications.length} medications');
+    } catch (e) {
+      debugPrint('Error fetching medications: $e');
+      rethrow;
+    }
+  }
 
+  Future<void> fetchLogs() async {
+    if (_currentUser == null) return;
+    
+    try {
       final response = await _supabase
           .from('medication_logs')
           .select()
-          .eq('user_id', user.id)
+          .eq('user_id', _currentUser!.id)
           .order('taken_at', ascending: false)
-          .limit(50);
-
+          .limit(100);
+      
       _logs = (response as List)
           .map((json) => MedLog.fromJson(json))
           .toList();
           
-      notifyListeners();
+      debugPrint('Loaded ${_logs.length} logs');
     } catch (e) {
       debugPrint('Error fetching logs: $e');
+      rethrow;
     }
   }
 
+  // Add new medication
   Future<void> addMedication(Medication medication) async {
+    if (_currentUser == null) return;
+    
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) return;
-
-      final now = DateTime.now();
-      final newMedication = Medication(
-        id: 'med_${now.millisecondsSinceEpoch}_${now.microsecond}',
-        name: medication.name,
-        dosage: medication.dosage,
-        frequency: medication.frequency,
-        category: medication.category,
-        times: List.from(medication.times),
-        notes: medication.notes,
-        startDate: now,
-        pillsRemaining: medication.pillsRemaining,
-        pillsTotal: medication.pillsTotal,
-        isActive: true,
-        createdAt: now,
-        updatedAt: now,
-      );
-
-      final json = newMedication.toJson();
-      json['user_id'] = user.id;
-
-      await _supabase.from('medications').insert(json);
+      await _supabase.from('medications').insert(medication.toJson());
       
-      _medications.insert(0, newMedication);
+      // Refresh the list
+      await fetchData();
+      
       notifyListeners();
     } catch (e) {
       debugPrint('Error adding medication: $e');
       _error = e.toString();
+      rethrow;
     }
   }
 
+  // Log medication as taken
   Future<void> logTaken(String medicationId) async {
+    if (_currentUser == null) return;
+    
     try {
-      final user = _supabase.auth.currentUser;
       final medication = _medications.firstWhere((m) => m.id == medicationId);
       
-      if (user == null) return;
-
       final log = MedLog(
         id: 'log_${DateTime.now().millisecondsSinceEpoch}',
+        userId: _currentUser!.id,
         medicationId: medicationId,
         medicationName: medication.name,
         dosage: medication.dosage,
         takenAt: DateTime.now(),
         skipped: false,
       );
-
-      final json = log.toJson();
-      json['user_id'] = user.id;
-
-      await _supabase.from('medication_logs').insert(json);
       
+      await _supabase.from('medication_logs').insert(log.toJson());
+      
+      // Update pill count
       if (medication.pillsRemaining > 0) {
-        final updatedMed = Medication(
-          id: medication.id,
-          name: medication.name,
-          dosage: medication.dosage,
-          frequency: medication.frequency,
-          category: medication.category,
-          times: medication.times,
-          notes: medication.notes,
-          startDate: medication.startDate,
+        final updatedMed = medication.copyWith(
           pillsRemaining: medication.pillsRemaining - 1,
-          pillsTotal: medication.pillsTotal,
-          isActive: medication.isActive,
-          createdAt: medication.createdAt,
           updatedAt: DateTime.now(),
         );
         
@@ -198,30 +205,26 @@ class MedicationProvider extends ChangeNotifier {
             .from('medications')
             .update(updatedMed.toJson())
             .eq('id', medicationId);
-        
-        final index = _medications.indexWhere((m) => m.id == medicationId);
-        if (index != -1) {
-          _medications[index] = updatedMed;
-        }
       }
       
-      _logs.insert(0, log);
-      notifyListeners();
+      // Refresh data
+      await fetchData();
     } catch (e) {
       debugPrint('Error logging taken: $e');
       _error = e.toString();
     }
   }
 
+  // Log medication as skipped
   Future<void> logSkipped(String medicationId, {String? note}) async {
+    if (_currentUser == null) return;
+    
     try {
-      final user = _supabase.auth.currentUser;
       final medication = _medications.firstWhere((m) => m.id == medicationId);
       
-      if (user == null) return;
-
       final log = MedLog(
         id: 'log_${DateTime.now().millisecondsSinceEpoch}',
+        userId: _currentUser!.id,
         medicationId: medicationId,
         medicationName: medication.name,
         dosage: medication.dosage,
@@ -229,44 +232,32 @@ class MedicationProvider extends ChangeNotifier {
         skipped: true,
         note: note,
       );
-
-      final json = log.toJson();
-      json['user_id'] = user.id;
-
-      await _supabase.from('medication_logs').insert(json);
       
-      _logs.insert(0, log);
-      notifyListeners();
+      await _supabase.from('medication_logs').insert(log.toJson());
+      
+      // Refresh data
+      await fetchData();
     } catch (e) {
       debugPrint('Error logging skipped: $e');
       _error = e.toString();
     }
   }
 
+  // Toggle medication active status
   Future<void> toggleActive(String medicationId) async {
     try {
       final medication = _medications.firstWhere((m) => m.id == medicationId);
-      final updatedMed = Medication(
-        id: medication.id,
-        name: medication.name,
-        dosage: medication.dosage,
-        frequency: medication.frequency,
-        category: medication.category,
-        times: medication.times,
-        notes: medication.notes,
-        startDate: medication.startDate,
-        pillsRemaining: medication.pillsRemaining,
-        pillsTotal: medication.pillsTotal,
+      final updatedMed = medication.copyWith(
         isActive: !medication.isActive,
-        createdAt: medication.createdAt,
         updatedAt: DateTime.now(),
       );
-
+      
       await _supabase
           .from('medications')
           .update(updatedMed.toJson())
           .eq('id', medicationId);
-
+      
+      // Update local list
       final index = _medications.indexWhere((m) => m.id == medicationId);
       if (index != -1) {
         _medications[index] = updatedMed;
@@ -278,18 +269,57 @@ class MedicationProvider extends ChangeNotifier {
     }
   }
 
+  // Check if medication was taken today
   bool isTakenToday(String medicationId) {
     final now = DateTime.now();
-    for (final log in _logs) {
-      if (log.medicationId == medicationId &&
-          log.takenAt.year == now.year &&
-          log.takenAt.month == now.month &&
-          log.takenAt.day == now.day &&
-          !log.skipped) {
-        return true;
-      }
+    return _logs.any((log) {
+      return log.medicationId == medicationId &&
+             log.takenAt.year == now.year &&
+             log.takenAt.month == now.month &&
+             log.takenAt.day == now.day &&
+             !log.skipped;
+    });
+  }
+
+  // Delete medication
+  Future<void> deleteMedication(String medicationId) async {
+    try {
+      await _supabase
+          .from('medications')
+          .delete()
+          .eq('id', medicationId);
+      
+      _medications.removeWhere((m) => m.id == medicationId);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error deleting medication: $e');
+      _error = e.toString();
     }
-    return false;
+  }
+
+  // Update supply
+  Future<void> updateSupply(String medicationId, int newSupply) async {
+    try {
+      final medication = _medications.firstWhere((m) => m.id == medicationId);
+      final updatedMed = medication.copyWith(
+        pillsRemaining: newSupply,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _supabase
+          .from('medications')
+          .update(updatedMed.toJson())
+          .eq('id', medicationId);
+      
+      final index = _medications.indexWhere((m) => m.id == medicationId);
+      if (index != -1) {
+        _medications[index] = updatedMed;
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error updating supply: $e');
+      _error = e.toString();
+    }
   }
 
   void clearError() {
