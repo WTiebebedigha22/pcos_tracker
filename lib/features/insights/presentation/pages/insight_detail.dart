@@ -374,7 +374,7 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
     );
   }
 
-  // Helper methods for cycle insights
+  // Helper methods for cycle insights - FIXED
   int _calculateAverageCycleLength(List cycles) {
     if (cycles.length < 2) return 0;
     
@@ -390,7 +390,7 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
       }
     }
     if (count == 0) return 0;
-    return (totalDays / count).floor();
+    return (totalDays / count).toInt();
   }
 
   int _calculateAveragePeriodLength(List cycles) {
@@ -404,7 +404,7 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
       }
     }
     if (count == 0) return 0;
-    return (totalDays / count).floor();
+    return (totalDays / count).toInt();
   }
 
   String _calculateRegularity(List cycles) {
