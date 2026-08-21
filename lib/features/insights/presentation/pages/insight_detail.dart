@@ -1,10 +1,10 @@
 // lib/features/insights/presentation/pages/insights_detail_page.dart
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
+
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/utils/insights_calculator.dart';
 import '../../../cycle_tracking/presentation/provider/cycle_provider.dart';
 import '../../../symptoms/presentation/provider/symptoms_provider.dart';
 import '../provider/insight_provider.dart';
@@ -23,8 +23,13 @@ class InsightsDetailPage extends StatefulWidget {
 
 class _InsightsDetailPageState extends State<InsightsDetailPage> {
   bool _isLoading = true;
+  bool _hasError = false;
+  String _errorMessage = '';
   String _timeRange = '3 months';
-  final List<String> _timeRanges = ['1 month', '3 months', '6 months', '1 year'];
+  
+  static const List<String> _timeRanges = ['1 month', '3 months', '6 months', '1 year'];
+  
+  InsightCalculator? _calculator;
 
   @override
   void initState() {
@@ -32,54 +37,77 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
     _loadData();
   }
 
+  @override
+  void dispose() {
+    _calculator = null;
+    super.dispose();
+  }
+
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-    await Future.wait([
-      context.read<InsightProvider>().fetchInsights(),
-      context.read<CycleProvider>().fetchCycles(),
-      context.read<SymptomProvider>().fetchAllSymptoms(),
-    ]);
-    setState(() => _isLoading = false);
-  }
+    setState(() {
+      _isLoading = true;
+      _hasError = false;
+    });
 
-  String _getInsightTitle() {
-    switch (widget.insightType) {
-      case 'cycle':
-        return 'Cycle Insights';
-      case 'symptom':
-        return 'Symptom Insights';
-      case 'health':
-        return 'Health Insights';
-      default:
-        return 'Insights';
+    try {
+      await Future.wait([
+        context.read<InsightProvider>().fetchInsights(),
+        context.read<CycleProvider>().fetchCycles(),
+        context.read<SymptomProvider>().fetchAllSymptoms(),
+      ]);
+
+      if (!mounted) return;
+
+      final cycleProvider = context.read<CycleProvider>();
+      final symptomProvider = context.read<SymptomProvider>();
+      
+      _calculator = InsightCalculator(
+        cycles: cycleProvider.cycles,
+        symptoms: symptomProvider.allSymptoms,
+      );
+
+      setState(() => _isLoading = false);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _hasError = true;
+        _errorMessage = 'Failed to load insights. Please try again.';
+      });
     }
   }
 
-  IconData _getInsightIcon() {
-    switch (widget.insightType) {
-      case 'cycle':
-        return Icons.calendar_month;
-      case 'symptom':
-        return Icons.sick;
-      case 'health':
-        return Icons.favorite;
-      default:
-        return Icons.insights;
-    }
+  Future<void> _refreshData() async {
+    await _loadData();
   }
 
-  Color _getInsightColor() {
-    switch (widget.insightType) {
-      case 'cycle':
-        return AppColors.primary;
-      case 'symptom':
-        return const Color(0xFFE94DA0);
-      case 'health':
-        return Colors.green;
-      default:
-        return Colors.blue;
-    }
-  }
+  String get _insightTitle => switch (widget.insightType) {
+    'cycle' => 'Cycle Insights',
+    'symptom' => 'Symptom Insights',
+    'health' => 'Health Insights',
+    _ => 'Insights',
+  };
+
+  IconData get _insightIcon => switch (widget.insightType) {
+    'cycle' => Icons.calendar_month,
+    'symptom' => Icons.sick,
+    'health' => Icons.favorite,
+    _ => Icons.insights,
+  };
+
+  Color get _insightColor => switch (widget.insightType) {
+    'cycle' => AppColors.primary,
+    'symptom' => const Color(0xFFE94DA0),
+    'health' => Colors.green,
+    _ => Colors.blue,
+  };
+
+  String get _summaryText => switch (widget.insightType) {
+    'cycle' => 'Track your cycle patterns and predictions',
+    'symptom' => 'Monitor symptom frequency and patterns',
+    'health' => 'Track your overall health metrics',
+    _ => 'Detailed insights for your health',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -87,7 +115,7 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
         title: Text(
-          _getInsightTitle(),
+          _insightTitle,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.transparent,
@@ -95,9 +123,7 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
         actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
-            onSelected: (value) {
-              setState(() => _timeRange = value);
-            },
+            onSelected: _onTimeRangeSelected,
             itemBuilder: (context) => _timeRanges.map((range) {
               return PopupMenuItem(
                 value: range,
@@ -114,19 +140,75 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  _buildSummaryCard(),
-                  const SizedBox(height: 16),
-                  _buildDetailContent(),
-                ],
-              ),
-            ),
+      body: _buildBody(),
     );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
+    }
+
+    if (_hasError) {
+      return _buildErrorState();
+    }
+
+    return RefreshIndicator(
+      onRefresh: _refreshData,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            _buildSummaryCard(),
+            const SizedBox(height: 16),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: _buildDetailContent(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          Text(
+            _errorMessage,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF1A1A2E),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: _loadData,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _onTimeRangeSelected(String value) {
+    setState(() => _timeRange = value);
+    _loadData();
   }
 
   Widget _buildSummaryCard() {
@@ -135,8 +217,8 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            _getInsightColor().withValues(alpha: 0.9),
-            _getInsightColor().withValues(alpha: 0.6),
+            _insightColor.withValues(alpha: 0.9),
+            _insightColor.withValues(alpha: 0.6),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -144,7 +226,7 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: _getInsightColor().withValues(alpha: 0.2),
+            color: _insightColor.withValues(alpha: 0.2),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -158,7 +240,7 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
               color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Icon(_getInsightIcon(), color: Colors.white, size: 32),
+            child: Icon(_insightIcon, color: Colors.white, size: 32),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -166,7 +248,7 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _getInsightTitle(),
+                  _insightTitle,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -175,7 +257,7 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _getSummaryText(),
+                  _summaryText,
                   style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 13,
@@ -190,9 +272,15 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
               color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: const Text(
-              'Updated',
-              style: TextStyle(color: Colors.white70, fontSize: 11),
+            child: const Row(
+              children: [
+                Icon(Icons.check_circle, size: 12, color: Colors.white70),
+                SizedBox(width: 4),
+                Text(
+                  'Updated',
+                  style: TextStyle(color: Colors.white70, fontSize: 11),
+                ),
+              ],
             ),
           ),
         ],
@@ -200,111 +288,100 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
     );
   }
 
-  String _getSummaryText() {
-    switch (widget.insightType) {
-      case 'cycle':
-        return 'Track your cycle patterns and predictions';
-      case 'symptom':
-        return 'Monitor symptom frequency and patterns';
-      case 'health':
-        return 'Track your overall health metrics';
-      default:
-        return 'Detailed insights for your health';
-    }
-  }
-
   Widget _buildDetailContent() {
-    switch (widget.insightType) {
-      case 'cycle':
-        return _buildCycleInsights();
-      case 'symptom':
-        return _buildSymptomInsights();
-      case 'health':
-        return _buildHealthInsights();
-      default:
-        return _buildGeneralInsights();
+    if (_calculator == null) {
+      return _buildEmptyState();
     }
+
+    return switch (widget.insightType) {
+      'cycle' => _buildCycleInsights(),
+      'symptom' => _buildSymptomInsights(),
+      'health' => _buildHealthInsights(),
+      _ => _buildGeneralInsights(),
+    };
   }
 
   Widget _buildCycleInsights() {
-    return Consumer<CycleProvider>(
-      builder: (context, provider, _) {
-        final cycles = provider.cycles;
-        
-        if (cycles.isEmpty) {
-          return _buildEmptyState();
-        }
+    if (!_calculator!.hasCycleData) {
+      return _buildEmptyState(
+        icon: Icons.calendar_month,
+        title: 'No Cycle Data',
+        message: 'Start tracking your cycles to see insights',
+      );
+    }
 
-        return Column(
-          children: [
-            _StatCard(
-              title: 'Average Cycle Length',
-              value: '${_calculateAverageCycleLength(cycles)} days',
-              icon: Icons.timeline,
-              color: AppColors.primary,
-            ),
-            const SizedBox(height: 12),
-            _StatCard(
-              title: 'Average Period Length',
-              value: '${_calculateAveragePeriodLength(cycles)} days',
-              icon: Icons.water_drop,
-              color: const Color(0xFFE94DA0),
-            ),
-            const SizedBox(height: 12),
-            _StatCard(
-              title: 'Cycle Regularity',
-              value: _calculateRegularity(cycles),
-              icon: Icons.show_chart,
-              color: Colors.green,
-            ),
-            const SizedBox(height: 16),
-            _buildCycleChart(cycles),
-            const SizedBox(height: 16),
-            _buildCycleInsightsList(cycles),
-          ],
-        );
-      },
+    final stats = _calculator!.getCycleStatistics();
+    
+    return Column(
+      key: const ValueKey('cycle_insights'),
+      children: [
+        _StatCard(
+          title: 'Average Cycle Length',
+          value: '${stats.averageCycleLength} days',
+          icon: Icons.timeline,
+          color: AppColors.primary,
+        ),
+        const SizedBox(height: 12),
+        _StatCard(
+          title: 'Average Period Length',
+          value: '${stats.averagePeriodLength} days',
+          icon: Icons.water_drop,
+          color: const Color(0xFFE94DA0),
+        ),
+        const SizedBox(height: 12),
+        _StatCard(
+          title: 'Cycle Regularity',
+          value: stats.regularity,
+          icon: Icons.show_chart,
+          color: _getRegularityColor(stats.regularity),
+        ),
+        const SizedBox(height: 16),
+        _buildCycleChart(),
+        const SizedBox(height: 16),
+        _buildCycleInsightsList(),
+      ],
     );
   }
 
   Widget _buildSymptomInsights() {
-    return Consumer<SymptomProvider>(
-      builder: (context, provider, _) {
-        final symptoms = provider.allSymptoms;
-        
-        if (symptoms.isEmpty) {
-          return _buildEmptyState();
-        }
+    if (!_calculator!.hasSymptomData) {
+      return _buildEmptyState(
+        icon: Icons.sick,
+        title: 'No Symptom Data',
+        message: 'Log your symptoms to see patterns and insights',
+      );
+    }
 
-        return Column(
-          children: [
-            _StatCard(
-              title: 'Total Symptoms Logged',
-              value: '${symptoms.length}',
-              icon: Icons.sick,
-              color: const Color(0xFFE94DA0),
-            ),
-            const SizedBox(height: 12),
-            _StatCard(
-              title: 'Most Common Symptom',
-              value: _getMostCommonSymptom(symptoms),
-              icon: Icons.favorite,
-              color: Colors.orange,
-            ),
-            const SizedBox(height: 12),
-            _StatCard(
-              title: 'Average Severity',
-              value: _getAverageSeverity(symptoms),
-              icon: Icons.signal_cellular_alt,
-              color: Colors.red,
-            ),
-            const SizedBox(height: 16),
-            _buildSymptomFrequencyChart(symptoms),
-            const SizedBox(height: 16),
-            _buildSymptomInsightsList(symptoms),
-          ],
-        );
-      },
+    final stats = _calculator!.getSymptomStatistics();
+    
+    return Column(
+      key: const ValueKey('symptom_insights'),
+      children: [
+        _StatCard(
+          title: 'Total Symptoms Logged',
+          value: '${stats.totalSymptoms}',
+          icon: Icons.sick,
+          color: const Color(0xFFE94DA0),
+        ),
+        const SizedBox(height: 12),
+        _StatCard(
+          title: 'Most Common Symptom',
+          value: stats.mostCommonSymptom,
+          icon: Icons.favorite,
+          color: Colors.orange,
+        ),
+        const SizedBox(height: 12),
+        _StatCard(
+          title: 'Average Severity',
+          value: stats.averageSeverity,
+          icon: Icons.signal_cellular_alt,
+          color: _getSeverityColor(stats.averageSeverity),
+        ),
+        const SizedBox(height: 16),
+        _buildSymptomFrequencyChart(),
+        const SizedBox(height: 16),
+        _buildSymptomInsightsList(),
+      ],
     );
   }
 
@@ -312,12 +389,13 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
     return Consumer<InsightProvider>(
       builder: (context, provider, _) {
         return Column(
+          key: const ValueKey('health_insights'),
           children: [
             _StatCard(
               title: 'Health Score',
               value: '${provider.healthScore}/100',
               icon: Icons.health_and_safety,
-              color: Colors.green,
+              color: _getHealthScoreColor(provider.healthScore),
             ),
             const SizedBox(height: 12),
             _StatCard(
@@ -342,145 +420,52 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
   }
 
   Widget _buildGeneralInsights() {
-    return _buildEmptyState();
+    return _buildEmptyState(
+      icon: Icons.insights,
+      title: 'No Insights Available',
+      message: 'This insight type is not yet supported',
+    );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState({
+    IconData icon = Icons.insights_outlined,
+    String title = 'No data available yet',
+    String message = 'Start tracking your health to see insights here',
+  }) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.insights_outlined,
-            size: 64,
-            color: Colors.grey[300],
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'No data available yet',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF1A1A2E),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 64,
+              color: Colors.grey[300],
             ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Start tracking your health to see insights here',
-            style: TextStyle(color: Colors.grey),
-          ),
-        ],
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1A1A2E),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: const TextStyle(color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  // Helper methods for cycle insights - FIXED
-  int _calculateAverageCycleLength(List cycles) {
-    if (cycles.length < 2) return 0;
-    
-    int totalDays = 0;
-    int count = 0;
-    for (int i = 1; i < cycles.length; i++) {
-      final prevStart = cycles[i - 1].startDate;
-      final currStart = cycles[i].startDate;
-      final daysDiff = currStart.difference(prevStart).inDays;
-      if (daysDiff > 20 && daysDiff < 60) {
-        totalDays += daysDiff;
-        count++;
-      }
-    }
-    if (count == 0) return 0;
-    return (totalDays / count).toInt();
-  }
-
-  int _calculateAveragePeriodLength(List cycles) {
-    int totalDays = 0;
-    int count = 0;
-    for (final cycle in cycles) {
-      if (cycle.endDate != null) {
-        final days = cycle.endDate!.difference(cycle.startDate).inDays + 1;
-        totalDays += days;
-        count++;
-      }
-    }
-    if (count == 0) return 0;
-    return (totalDays / count).toInt();
-  }
-
-  String _calculateRegularity(List cycles) {
-    if (cycles.length < 3) return 'Insufficient data';
-    
-    List<int> lengths = [];
-    for (int i = 1; i < cycles.length; i++) {
-      final diff = cycles[i - 1].startDate.difference(cycles[i].startDate).inDays;
-      if (diff > 20 && diff < 60) {
-        lengths.add(diff);
-      }
-    }
-    
-    if (lengths.isEmpty) return 'Insufficient data';
-    
-    final total = lengths.reduce((a, b) => a + b);
-    final avg = total / lengths.length;
-    double varianceSum = 0.0;
-    for (final length in lengths) {
-      varianceSum += (length - avg) * (length - avg);
-    }
-    final variance = varianceSum / lengths.length;
-    final stdDev = math.sqrt(variance);
-    
-    if (stdDev <= 3.0) return 'Very Regular';
-    if (stdDev <= 5.0) return 'Regular';
-    if (stdDev <= 7.0) return 'Somewhat Irregular';
-    return 'Irregular';
-  }
-
-  String _getMostCommonSymptom(List symptoms) {
-    if (symptoms.isEmpty) return 'None';
-    
-    final Map<String, int> counts = {};
-    for (final symptom in symptoms) {
-      for (final s in symptom.symptoms) {
-        counts[s] = (counts[s] ?? 0) + 1;
-      }
-    }
-    
-    if (counts.isEmpty) return 'None';
-    
-    String mostCommon = '';
-    int highestCount = 0;
-    for (final entry in counts.entries) {
-      if (entry.value > highestCount) {
-        highestCount = entry.value;
-        mostCommon = entry.key;
-      }
-    }
-    return mostCommon;
-  }
-
-  String _getAverageSeverity(List symptoms) {
-    if (symptoms.isEmpty) return 'N/A';
-    
-    int total = 0;
-    for (final symptom in symptoms) {
-      total += symptom.symptoms.length;
-    }
-    if (total == 0) return 'None';
-    final double avg = total / symptoms.length;
-    if (avg <= 2.0) return 'Mild';
-    if (avg <= 4.0) return 'Moderate';
-    return 'Severe';
-  }
-
-  // Chart builders
-  Widget _buildCycleChart(List cycles) {
-    final cycleLengths = <FlSpot>[];
-    for (int i = 1; i < cycles.length && i < 12; i++) {
-      final diff = cycles[i - 1].startDate.difference(cycles[i].startDate).inDays;
-      if (diff > 20 && diff < 60) {
-        cycleLengths.add(FlSpot((i - 1).toDouble(), diff.toDouble()));
-      }
-    }
+  Widget _buildCycleChart() {
+    final cycleLengths = _calculator!.getCycleLengthHistory();
     
     return Container(
       padding: const EdgeInsets.all(16),
@@ -515,9 +500,9 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
                             showTitles: true,
                             getTitlesWidget: (value, meta) {
                               final index = value.toInt();
-                              if (index >= 0 && index < cycles.length - 1) {
+                              if (index >= 0 && index < cycleLengths.length) {
                                 return Text(
-                                  '${index + 1}',
+                                  'Cycle ${index + 1}',
                                   style: const TextStyle(fontSize: 10),
                                 );
                               }
@@ -529,12 +514,19 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
                           sideTitles: SideTitles(
                             showTitles: true,
                             getTitlesWidget: (value, meta) {
-                              return Text('${value.toInt()}d', style: const TextStyle(fontSize: 10));
+                              return Text(
+                                '${value.toInt()}d',
+                                style: const TextStyle(fontSize: 10),
+                              );
                             },
                           ),
                         ),
-                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        topTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        rightTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
                       ),
                       borderData: FlBorderData(show: false),
                       lineBarsData: [
@@ -558,18 +550,8 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
     );
   }
 
-  Widget _buildSymptomFrequencyChart(List symptoms) {
-    final Map<String, int> counts = {};
-    for (final symptom in symptoms) {
-      for (final s in symptom.symptoms) {
-        counts[s] = (counts[s] ?? 0) + 1;
-      }
-    }
-    
-    final sortedSymptoms = counts.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    
-    final topSymptoms = sortedSymptoms.take(5).toList();
+  Widget _buildSymptomFrequencyChart() {
+    final topSymptoms = _calculator!.getTopSymptoms(limit: 5);
     
     return Container(
       padding: const EdgeInsets.all(16),
@@ -598,7 +580,7 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
                 : BarChart(
                     BarChartData(
                       alignment: BarChartAlignment.spaceAround,
-                      maxY: topSymptoms.isNotEmpty ? topSymptoms.first.value.toDouble() + 1 : 10,
+                      maxY: topSymptoms.first.count.toDouble() + 1,
                       titlesData: FlTitlesData(
                         bottomTitles: AxisTitles(
                           sideTitles: SideTitles(
@@ -606,8 +588,11 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
                             getTitlesWidget: (value, meta) {
                               final index = value.toInt();
                               if (index >= 0 && index < topSymptoms.length) {
+                                final symptomName = topSymptoms[index].name;
                                 return Text(
-                                  topSymptoms[index].key.substring(0, 3),
+                                  symptomName.length >= 4 
+                                      ? symptomName.substring(0, 4) 
+                                      : symptomName,
                                   style: const TextStyle(fontSize: 10),
                                 );
                               }
@@ -619,12 +604,19 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
                           sideTitles: SideTitles(
                             showTitles: true,
                             getTitlesWidget: (value, meta) {
-                              return Text(value.toInt().toString(), style: const TextStyle(fontSize: 10));
+                              return Text(
+                                value.toInt().toString(),
+                                style: const TextStyle(fontSize: 10),
+                              );
                             },
                           ),
                         ),
-                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        topTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        rightTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
                       ),
                       borderData: FlBorderData(show: false),
                       barGroups: topSymptoms.asMap().entries.map((entry) {
@@ -632,7 +624,7 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
                           x: entry.key,
                           barRods: [
                             BarChartRodData(
-                              toY: entry.value.value.toDouble(),
+                              toY: entry.value.count.toDouble(),
                               color: const Color(0xFFE94DA0),
                               width: 30,
                               borderRadius: BorderRadius.circular(4),
@@ -649,8 +641,9 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
     );
   }
 
-  // Insights lists
-  Widget _buildCycleInsightsList(List cycles) {
+  Widget _buildCycleInsightsList() {
+    final insights = _calculator!.getCycleInsights();
+    
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -666,29 +659,28 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          _InsightItem(
-            icon: Icons.info_outline,
-            text: _getCycleInsight1(cycles),
-            color: AppColors.primary,
-          ),
-          const Divider(),
-          _InsightItem(
-            icon: Icons.tips_and_updates,
-            text: _getCycleInsight2(cycles),
-            color: Colors.orange,
-          ),
-          const Divider(),
-          _InsightItem(
-            icon: Icons.health_and_safety,
-            text: _getCycleInsight3(cycles),
-            color: Colors.green,
-          ),
+          ...insights.asMap().entries.map((entry) {
+            final index = entry.key;
+            final insight = entry.value;
+            return Column(
+              children: [
+                _InsightItem(
+                  icon: _getInsightIcon(index),
+                  text: insight,
+                  color: _getInsightColor(index),
+                ),
+                if (index < insights.length - 1) const Divider(),
+              ],
+            );
+          }),
         ],
       ),
     );
   }
 
-  Widget _buildSymptomInsightsList(List symptoms) {
+  Widget _buildSymptomInsightsList() {
+    final insights = _calculator!.getSymptomInsights();
+    
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -704,29 +696,49 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          _InsightItem(
-            icon: Icons.info_outline,
-            text: _getSymptomInsight1(symptoms),
-            color: const Color(0xFFE94DA0),
-          ),
-          const Divider(),
-          _InsightItem(
-            icon: Icons.trending_up,
-            text: _getSymptomInsight2(symptoms),
-            color: Colors.orange,
-          ),
-          const Divider(),
-          _InsightItem(
-            icon: Icons.tips_and_updates,
-            text: _getSymptomInsight3(symptoms),
-            color: Colors.green,
-          ),
+          ...insights.asMap().entries.map((entry) {
+            final index = entry.key;
+            final insight = entry.value;
+            return Column(
+              children: [
+                _InsightItem(
+                  icon: _getInsightIcon(index),
+                  text: insight,
+                  color: _getInsightColor(index),
+                ),
+                if (index < insights.length - 1) const Divider(),
+              ],
+            );
+          }),
         ],
       ),
     );
   }
 
   Widget _buildHealthRecommendations() {
+    final recommendations = [
+      (
+        icon: Icons.water_drop,
+        text: 'Aim for 2-3 liters of water daily. Proper hydration helps with PCOS symptoms.',
+        color: Colors.blue,
+      ),
+      (
+        icon: Icons.bed,
+        text: 'Maintain a consistent sleep schedule of 7-9 hours for better hormone balance.',
+        color: Colors.purple,
+      ),
+      (
+        icon: Icons.fitness_center,
+        text: 'Aim for 150 minutes of moderate exercise weekly. Walking and swimming are great options.',
+        color: Colors.green,
+      ),
+      (
+        icon: Icons.self_improvement,
+        text: 'Practice stress-reducing activities like meditation, yoga, or deep breathing daily.',
+        color: Colors.orange,
+      ),
+    ];
+    
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -742,91 +754,69 @@ class _InsightsDetailPageState extends State<InsightsDetailPage> {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          _InsightItem(
-            icon: Icons.water_drop,
-            text: _getHydrationRecommendation(),
-            color: Colors.blue,
-          ),
-          const Divider(),
-          _InsightItem(
-            icon: Icons.bed,
-            text: _getSleepRecommendation(),
-            color: Colors.purple,
-          ),
-          const Divider(),
-          _InsightItem(
-            icon: Icons.fitness_center,
-            text: _getExerciseRecommendation(),
-            color: Colors.green,
-          ),
-          const Divider(),
-          _InsightItem(
-            icon: Icons.self_improvement,
-            text: _getStressRecommendation(),
-            color: Colors.orange,
-          ),
+          ...recommendations.asMap().entries.map((entry) {
+            final index = entry.key;
+            final recommendation = entry.value;
+            return Column(
+              children: [
+                _InsightItem(
+                  icon: recommendation.icon,
+                  text: recommendation.text,
+                  color: recommendation.color,
+                ),
+                if (index < recommendations.length - 1) const Divider(),
+              ],
+            );
+          }),
         ],
       ),
     );
   }
 
-  // Insight text generators
-  String _getCycleInsight1(List cycles) {
-    final avg = _calculateAverageCycleLength(cycles);
-    if (avg == 0) return 'Log more cycles to see patterns';
-    if (avg > 35) return 'Your cycles are longer than average ($avg days). This is common with PCOS.';
-    return 'Your average cycle length is $avg days, which is within normal range.';
+  Color _getRegularityColor(String regularity) {
+    return switch (regularity) {
+      'Very Regular' => Colors.green,
+      'Regular' => Colors.lightGreen,
+      'Somewhat Irregular' => Colors.orange,
+      'Irregular' => Colors.red,
+      _ => Colors.grey,
+    };
   }
 
-  String _getCycleInsight2(List cycles) {
-    final regularity = _calculateRegularity(cycles);
-    if (regularity == 'Insufficient data') return 'Continue logging to track cycle regularity.';
-    if (regularity == 'Irregular' || regularity == 'Somewhat Irregular') {
-      return 'Your cycles show some irregularity. Consider tracking diet and stress factors.';
-    }
-    return 'Your cycles are $regularity. Keep up the good tracking!';
+  Color _getSeverityColor(String severity) {
+    return switch (severity) {
+      'Mild' => Colors.green,
+      'Moderate' => Colors.orange,
+      'Severe' => Colors.red,
+      _ => Colors.grey,
+    };
   }
 
-  String _getCycleInsight3(List cycles) {
-    if (cycles.length < 2) return 'Log 2+ cycles to get personalized predictions.';
-    return 'Based on your pattern, your next period is predicted in approximately ${_calculateAverageCycleLength(cycles)} days.';
+  Color _getHealthScoreColor(int score) {
+    if (score >= 80) return Colors.green;
+    if (score >= 60) return Colors.orange;
+    return Colors.red;
   }
 
-  String _getSymptomInsight1(List symptoms) {
-    if (symptoms.isEmpty) return 'Log symptoms to get personalized insights.';
-    final common = _getMostCommonSymptom(symptoms);
-    return 'Your most common symptom is "$common". Consider tracking when it occurs most often.';
+  IconData _getInsightIcon(int index) {
+    return switch (index) {
+      0 => Icons.info_outline,
+      1 => Icons.trending_up,
+      2 => Icons.tips_and_updates,
+      _ => Icons.health_and_safety,
+    };
   }
 
-  String _getSymptomInsight2(List symptoms) {
-    if (symptoms.length < 3) return 'Log more symptoms to identify patterns.';
-    final severity = _getAverageSeverity(symptoms);
-    return 'Your average symptom severity is $severity. ${severity == 'Severe' ? 'Consider discussing with your doctor.' : 'Keep monitoring for changes.'}';
-  }
-
-  String _getSymptomInsight3(List symptoms) {
-    if (symptoms.isEmpty) return 'Track symptoms to see correlations.';
-    return 'Regular symptom logging helps identify triggers and patterns. Keep it up!';
-  }
-
-  String _getHydrationRecommendation() {
-    return 'Aim for 2-3 liters of water daily. Proper hydration helps with PCOS symptoms.';
-  }
-
-  String _getSleepRecommendation() {
-    return 'Maintain a consistent sleep schedule of 7-9 hours for better hormone balance.';
-  }
-
-  String _getExerciseRecommendation() {
-    return 'Aim for 150 minutes of moderate exercise weekly. Walking and swimming are great options.';
-  }
-
-  String _getStressRecommendation() {
-    return 'Practice stress-reducing activities like meditation, yoga, or deep breathing daily.';
+  Color _getInsightColor(int index) {
+    return switch (index) {
+      0 => _insightColor,
+      1 => Colors.orange,
+      2 => Colors.green,
+      _ => Colors.blue,
+    };
   }
 }
 
-// Supporting widgets
 class _StatCard extends StatelessWidget {
   final String title;
   final String value;
@@ -848,6 +838,13 @@ class _StatCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFF0F0F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -869,6 +866,7 @@ class _StatCard extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 12,
                     color: Colors.grey,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -879,6 +877,7 @@ class _StatCard extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF1A1A2E),
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -903,12 +902,16 @@ class _InsightItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(4),
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
             child: Icon(icon, color: color, size: 18),
           ),
           const SizedBox(width: 12),
@@ -926,9 +929,4 @@ class _InsightItem extends StatelessWidget {
       ),
     );
   }
-}
-
-// Extension for sqrt calculation
-extension SqrtExtension on double {
-  double sqrt() => math.sqrt(this);
 }

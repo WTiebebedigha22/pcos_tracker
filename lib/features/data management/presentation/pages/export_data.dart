@@ -139,7 +139,7 @@ class _ExportDataPageState extends State<ExportDataPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Data exported successfully! ✨'),
+            content: Text('Data exported successfully!'),
             backgroundColor: Colors.green,
           ),
         );
