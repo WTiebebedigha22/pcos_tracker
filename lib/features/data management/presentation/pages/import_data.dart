@@ -1,6 +1,5 @@
 // lib/features/data_management/presentation/pages/import_data_page.dart
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -36,54 +35,42 @@ class _ImportDataPageState extends State<ImportDataPage> {
   Map<String, int> _dataCounts = {};
 
   Future<void> _pickAndImportFile() async {
-    try {
-      // Standard call for file_picker
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-      );
+  try {
+    final file = await FilePickerPlatform.instance.pickFile(
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+    );
 
-      if (result == null || result.files.isEmpty) return;
+    if (file == null) return;
+    
+    setState(() {
+      _isImporting = true;
+      _progressValue = 0.0;
+      _importProgress = 'Reading file...';
+      _selectedFileName = file.name;
+    });
 
-      final PlatformFile pickedFile = result.files.first;
+    final fileContent = utf8.decode(await file.readAsBytes());
 
-      setState(() {
-        _isImporting = true;
-        _progressValue = 0.0;
-        _importProgress = 'Reading file...';
-        _selectedFileName = pickedFile.name;
-      });
+    final Map<String, dynamic> data = jsonDecode(fileContent);
 
-      String fileContent;
-
-      if (pickedFile.path != null) {
-        final file = File(pickedFile.path!);
-        fileContent = await file.readAsString();
-      } else {
-        throw Exception('Unable to access selected file path.');
-      }
-
-      final Map<String, dynamic> data = jsonDecode(fileContent);
-
-      // Validate data structure
-      if (!_isValidImportData(data)) {
-        throw Exception('Invalid data format. Expected a valid JSON backup.');
-      }
-
-      setState(() {
-        _loadedData = data;
-        _dataCounts = _getDataCounts(data);
-        _importProgress = 'File loaded successfully!';
-        _progressValue = 0.2;
-        _isImporting = false;
-      });
-
-      // Show preview dialog
-      _showPreviewDialog();
-    } catch (e) {
-      _handleError('Error reading file: $e');
+    if (!_isValidImportData(data)) {
+      throw Exception('Invalid data format. Expected a valid JSON backup.');
     }
+
+    setState(() {
+      _loadedData = data;
+      _dataCounts = _getDataCounts(data);
+      _importProgress = 'File loaded successfully!';
+      _progressValue = 0.2;
+      _isImporting = false;
+    });
+
+    _showPreviewDialog();
+  } catch (e) {
+    _handleError('Error reading file: $e');
   }
+}
 
   bool _isValidImportData(Map<String, dynamic> data) {
     final validKeys = [
@@ -494,10 +481,16 @@ class _ImportDataPageState extends State<ImportDataPage> {
   }
 
   Future<void> _importListItems(String tableName, List<Map<String, dynamic>> items, String userId) async {
-    for (final item in items) {
+    final List<Map<String, dynamic>> batchPayload = [];
+    for (final rawItem in items) {
+      final item = Map<String, dynamic>.from(rawItem);
       item['user_id'] = userId;
-      item.remove('id');
-      await Supabase.instance.client.from(tableName).insert(item);
+      item.remove('id'); // Strips primary keys to prevent Supabase duplicate key exceptions
+      batchPayload.add(item);
+    }
+    
+    if (batchPayload.isNotEmpty) {
+      await Supabase.instance.client.from(tableName).insert(batchPayload);
     }
   }
 
