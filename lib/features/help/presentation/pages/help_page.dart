@@ -22,7 +22,7 @@ class HelpPage extends StatelessWidget {
             title: 'Contact Us',
             description: 'Get in touch with our support team',
             onTap: () async {
-              final emailUrl = Uri.parse('mailto:support@cyclesync.com');
+              final emailUrl = Uri.parse('mailto:support@Lunora.com');
               if (await canLaunchUrl(emailUrl)) {
                 await launchUrl(emailUrl);
               }

@@ -116,7 +116,7 @@ class _TopBar extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'CycleSync',
+                'Lunora',
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w800,

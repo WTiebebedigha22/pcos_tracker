@@ -34,7 +34,7 @@ class AboutPage extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             const Text(
-              'CycleSync',
+              'Lunora',
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
@@ -56,7 +56,7 @@ class AboutPage extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              '© 2026 CycleSync. All rights reserved.',
+              '© 2026 Lunora. All rights reserved.',
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 32),

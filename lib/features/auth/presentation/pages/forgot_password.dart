@@ -44,7 +44,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     try {
       await Supabase.instance.client.auth.resetPasswordForEmail(
         emailController.text.trim(),
-        redirectTo: 'com.cyclesync.app://reset-password',
+        redirectTo: 'com.Lunora.app://reset-password',
       );
 
       setState(() => _emailSent = true);

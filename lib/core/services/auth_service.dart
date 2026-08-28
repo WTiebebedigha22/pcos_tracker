@@ -41,7 +41,7 @@ class AuthService {
   }) async {
     await supabase.auth.resetPasswordForEmail(
       email,
-      redirectTo: 'com.cyclesync.app://reset-password',
+      redirectTo: 'com.Lunora.app://reset-password',
     );
   }
 

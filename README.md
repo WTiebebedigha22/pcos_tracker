@@ -1,4 +1,4 @@
-CycleSync — PCOS Tracker Mobile App
+Lunora — PCOS Tracker Mobile App
 
 A modern Flutter-based PCOS tracking application designed to help women monitor symptoms, menstrual cycles, medications, hydration, lifestyle habits, and hormonal wellness in one elegant platform.
 
@@ -11,7 +11,7 @@ Clean Architecture
 Material Design 3
 🌸 Overview
 
-CycleSync is a feminine wellness-focused mobile application that empowers users with PCOS (Polycystic Ovary Syndrome) to:
+Lunora is a feminine wellness-focused mobile application that empowers users with PCOS (Polycystic Ovary Syndrome) to:
 
 Track menstrual cycles
 Monitor symptoms
@@ -195,7 +195,7 @@ dependencies:
   flutter_local_notifications: ^17.1.2
 🎨 Theme
 
-CycleSync uses:
+Lunora uses:
 
 Deep Purple Accent
 Soft Pink
@@ -242,7 +242,7 @@ demand for PCOS-specific health tracking
 personalized health insights
 💖 Design Philosophy
 
-CycleSync is designed to feel:
+Lunora is designed to feel:
 
 comforting
 feminine
@@ -277,7 +277,7 @@ Supabase Integration
 Notifications
 Insights Charts
 AI Recommendations
-🌺 CycleSync
+🌺 Lunora
 
 Track your cycle.
 Understand your body.

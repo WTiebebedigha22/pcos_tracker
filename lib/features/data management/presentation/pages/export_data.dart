@@ -120,7 +120,7 @@ class _ExportDataPageState extends State<ExportDataPage> {
 
       // Generate JSON file
       final String jsonString = _generateJson(allData);
-      final String fileName = 'cyclesync_export_$exportDate.json';
+      final String fileName = 'Lunora_export_$exportDate.json';
       
       // Save to temporary directory
       final directory = await getTemporaryDirectory();
@@ -133,7 +133,7 @@ class _ExportDataPageState extends State<ExportDataPage> {
       // Share the file using SharePlus
       await Share.shareXFiles(
         [XFile(filePath)],
-        text: 'Here is my exported data from CycleSync PCOS Tracker',
+        text: 'Here is my exported data from Lunora PCOS Tracker',
       );
 
       if (mounted) {
@@ -281,7 +281,7 @@ class _ExportDataPageState extends State<ExportDataPage> {
 
   String _generateJson(Map<String, dynamic> data) {
     data['export_date'] = DateTime.now().toIso8601String();
-    data['app_name'] = 'CycleSync PCOS Tracker';
+    data['app_name'] = 'Lunora PCOS Tracker';
     data['version'] = '1.0.0';
     return const JsonEncoder.withIndent('  ').convert(data);
   }

@@ -72,7 +72,7 @@ class _SplashPageState extends State<SplashPage> {
               ),
               const SizedBox(height: 30),
               const Text(
-                'CycleSync',
+                'Lunora',
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,

@@ -1,5 +1,5 @@
 class AppStrings {
-  static const String appName = 'CycleSync';
+  static const String appName = 'Lunora';
   static const String appTagline = 'Track your cycle, balance your health';
 
   // Auth

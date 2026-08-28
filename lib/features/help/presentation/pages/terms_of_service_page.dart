@@ -31,12 +31,12 @@ class TermsOfServicePage extends StatelessWidget {
             const SizedBox(height: 24),
             _TermsSection(
               title: '1. Acceptance of Terms',
-              content: 'By downloading, accessing, or using CycleSync, you agree to be bound by these Terms of Service.',
+              content: 'By downloading, accessing, or using Lunora, you agree to be bound by these Terms of Service.',
             ),
             const SizedBox(height: 16),
             _TermsSection(
               title: '2. Health Disclaimer',
-              content: 'CycleSync is not a medical device and does not provide medical advice. Always consult with a healthcare provider for medical decisions.',
+              content: 'Lunora is not a medical device and does not provide medical advice. Always consult with a healthcare provider for medical decisions.',
             ),
             const SizedBox(height: 16),
             _TermsSection(
@@ -49,7 +49,7 @@ class TermsOfServicePage extends StatelessWidget {
             const SizedBox(height: 16),
             _TermsSection(
               title: '4. Data Privacy',
-              content: 'Your use of CycleSync is also governed by our Privacy Policy. We take data protection seriously.',
+              content: 'Your use of Lunora is also governed by our Privacy Policy. We take data protection seriously.',
             ),
             const SizedBox(height: 32),
           ],

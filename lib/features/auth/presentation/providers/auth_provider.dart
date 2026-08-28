@@ -100,7 +100,7 @@ class AuthProvider extends ChangeNotifier {
     try {
       await _supabase.auth.resetPasswordForEmail(
         email.trim(),
-        redirectTo: 'com.cyclesync.app://reset-password',
+        redirectTo: 'com.Lunora.app://reset-password',
       );
       _isLoading = false;
       notifyListeners();
@@ -149,7 +149,7 @@ class AuthProvider extends ChangeNotifier {
     try {
       await _supabase.auth.signInWithOAuth(
         OAuthProvider.google,
-        redirectTo: 'com.cyclesync.app://login-callback',
+        redirectTo: 'com.Lunora.app://login-callback',
       );
       _isLoading = false;
       notifyListeners();

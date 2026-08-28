@@ -47,7 +47,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'CycleSync',
+      title: 'Lunora',
       debugShowCheckedModeBanner: false,
       routerConfig: AppRouter.router,
       themeMode: ThemeMode.light,
