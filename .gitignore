@@ -49,3 +49,32 @@ app.*.map.json
 
 # Ignore Gradle build output directory
 build
+
+
+# --- Lunora production secrets ---
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks
+**/google-services.json
+**/GoogleService-Info.plist
+ios/Pods/
+ios/.symlinks/
+.dart_tool/
+build/
+coverage/
+*.log
+
+
+# --- Lunora secrets ---
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks
+**/google-services.json
+**/GoogleService-Info.plist
+.dart_tool/
+build/
+coverage/

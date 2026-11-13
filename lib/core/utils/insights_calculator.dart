@@ -156,7 +156,7 @@ class InsightCalculator {
     
     List<int> lengths = [];
     for (int i = 1; i < cycles.length; i++) {
-      final diff = cycles[i - 1].startDate.difference(cycles[i].startDate).inDays;
+      final diff = cycles[i].startDate.difference(cycles[i - 1].startDate).inDays;
       if (diff > 20 && diff < 60) {
         lengths.add(diff);
       }

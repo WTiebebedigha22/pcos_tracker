@@ -13,6 +13,6 @@ class NetworkInfoImpl implements NetworkInfo {
   Future<bool> get isConnected async {
     final result = await connectivity.checkConnectivity();
 
-    return result != ConnectivityResult.none;
+    return result.isNotEmpty && !result.contains(ConnectivityResult.none);
   }
 }

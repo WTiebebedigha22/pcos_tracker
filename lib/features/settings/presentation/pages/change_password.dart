@@ -120,14 +120,6 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     }
   }
 
-  bool _isFormValid() {
-    return _currentPasswordController.text.isNotEmpty &&
-           _newPasswordController.text.isNotEmpty &&
-           _confirmPasswordController.text.isNotEmpty &&
-           _newPasswordController.text == _confirmPasswordController.text &&
-           _newPasswordController.text.length >= 6;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(

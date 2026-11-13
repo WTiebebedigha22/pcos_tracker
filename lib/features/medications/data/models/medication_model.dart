@@ -37,7 +37,7 @@ extension TimeOfDayExtension on TimeOfDay {
 
   DayPeriod get period => hour < 12 ? DayPeriod.am : DayPeriod.pm;
   
-  String toJson() => '${hour}:${minute}';
+  String toJson() => '$hour:$minute';
   
   static TimeOfDay fromJson(String json) {
     final parts = json.split(':');
