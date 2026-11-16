@@ -72,7 +72,7 @@ class _MedicationManagerState extends State<MedicationManager> {
             const SizedBox(height: 8),
             TextField(controller: _dose, decoration: const InputDecoration(labelText: 'Dose (optional)', border: OutlineInputBorder())),
             const SizedBox(height: 10),
-            LunoraButton(label: 'Add medication', onPressed: () => _addCustom(context)),
+            LunoraButton(label: 'Add medication', onPressed: () => _addCustom(context), enabled: _name.text.trim().isNotEmpty),
           ])),
         ]),
       ),
@@ -85,7 +85,10 @@ class _MedicationManagerState extends State<MedicationManager> {
     await context.read<PhaseOneState>().addMedication(name, _dose.text);
     _name.clear();
     _dose.clear();
-    if (mounted) FocusScope.of(context).unfocus();
+    if (mounted) {
+      setState(() {});
+      FocusScope.of(context).unfocus();
+    }
   }
 
   Future<void> _addPreset(BuildContext context, String preset) async {

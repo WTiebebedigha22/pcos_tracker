@@ -3,70 +3,50 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import 'dark_theme.dart';
 import 'light_theme.dart';
+import 'lunora_theme.dart';
 
 class AppTheme {
-  static ThemeData lightTheme = lightThemeData;
+  // Phase 1 uses the Lunora tokens while legacy screens remain available.
+  static ThemeData lightTheme = LunoraColors.theme;
 
   static ThemeData darkTheme = darkThemeData;
 
-  // Shared Input Decoration
-  static InputDecorationTheme inputDecorationTheme =
-      InputDecorationTheme(
+  static InputDecorationTheme inputDecorationTheme = InputDecorationTheme(
     filled: true,
-    fillColor: AppColors.white,
-    contentPadding: const EdgeInsets.symmetric(
-      horizontal: 20,
-      vertical: 18,
-    ),
+    fillColor: AppColors.card,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
     border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(18),
-      borderSide: BorderSide.none,
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: AppColors.line),
     ),
     enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(18),
-      borderSide: BorderSide.none,
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: AppColors.line),
     ),
     focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(18),
-      borderSide: const BorderSide(
-        color: AppColors.primary,
-        width: 1.5,
-      ),
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: AppColors.lavenderDeep, width: 1.5),
     ),
-    hintStyle: const TextStyle(
-      color: AppColors.textLight,
-      fontSize: 14,
-    ),
+    hintStyle: const TextStyle(color: AppColors.inkSoft, fontSize: 14),
   );
 
-  // Shared Elevated Button Theme
-  static ElevatedButtonThemeData elevatedButtonTheme =
-      ElevatedButtonThemeData(
+  static ElevatedButtonThemeData elevatedButtonTheme = ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(
       elevation: 0,
-      minimumSize: const Size(
-        double.infinity,
-        56,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-      ),
-      backgroundColor: AppColors.primary,
+      minimumSize: const Size(double.infinity, 48),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      backgroundColor: AppColors.lavenderDeep,
       foregroundColor: Colors.white,
-      textStyle: const TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w600,
-      ),
+      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
     ),
   );
 
-  // Shared Card Theme
-  static CardTheme cardTheme = CardTheme(
-    elevation: 2,
-    color: AppColors.cardBackground,
-    shadowColor: Colors.black12,
+  static CardThemeData cardTheme = CardThemeData(
+    elevation: 0,
+    color: AppColors.card,
     shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(12),
+      side: const BorderSide(color: AppColors.line),
     ),
   );
 }
